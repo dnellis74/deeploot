@@ -8,7 +8,7 @@ export class MainScene extends Phaser.Scene {
   private arrows!: Phaser.Physics.Arcade.Group;
   private door!: Phaser.GameObjects.Rectangle;
   private treasure!: Phaser.GameObjects.Arc;
-  private enemy!: Phaser.GameObjects.Arc;
+  private enemies!: Phaser.Physics.Arcade.Group;
   private scoreText!: Phaser.GameObjects.Text;
   private roomText!: Phaser.GameObjects.Text;
   private score = 0;
@@ -48,6 +48,7 @@ export class MainScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.walls = this.physics.add.staticGroup();
+    this.enemies = this.physics.add.group();
     this.arrows = this.arrows = this.physics.add.group({
       classType: Phaser.GameObjects.Rectangle, // Tells the group to create Rectangles
       createCallback: (obj) => {
@@ -81,7 +82,7 @@ export class MainScene extends Phaser.Scene {
       arrow.destroy();
     });
 
-    // Set up enemy collisions (will be re-established after each spawn)
+    // Set up enemy collisions (once for the group, works for all enemies)
     this.setupEnemyCollisions();
 
     // Set up treasure collisions (will be re-established after each spawn)
@@ -181,8 +182,8 @@ export class MainScene extends Phaser.Scene {
 
     this.walls.clear(true, true);
     this.arrows.clear(true, true);
+    this.enemies.clear(true, true);
     this.treasure?.destroy();
-    this.enemy?.destroy();
 
     const doorX = width / 2;
     const doorY = wallThickness / 2;
@@ -197,7 +198,9 @@ export class MainScene extends Phaser.Scene {
     this.createWall(width - wallThickness / 2, height / 2, wallThickness, height);
 
     this.placeTreasure();
-    this.spawnEnemy();
+    for (let i = 0; i < 3; i++) {
+      this.spawnEnemy();
+    }
 
     const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
     playerBody.setVelocity(0, 0);
@@ -243,25 +246,23 @@ export class MainScene extends Phaser.Scene {
   private spawnEnemy() {
     const x = Phaser.Math.Between(100, this.scale.width - 100);
     const y = Phaser.Math.Between(120, this.scale.height - 160);
-    this.enemy = this.add.circle(x, y, 14, 0x22c55e); // Green color
-    this.physics.add.existing(this.enemy);
-    const enemyBody = this.enemy.body as Phaser.Physics.Arcade.Body;
+    const enemy = this.add.circle(x, y, 14, 0x22c55e); // Green color
+    this.enemies.add(enemy);
+    this.physics.add.existing(enemy);
+    const enemyBody = enemy.body as Phaser.Physics.Arcade.Body;
     enemyBody.setVelocity(Phaser.Math.Between(-140, 140), Phaser.Math.Between(-140, 140));
     enemyBody.setBounce(1, 1);
     enemyBody.setCollideWorldBounds(true);
-    
-    // Re-establish collisions with the new enemy
-    this.setupEnemyCollisions();
   }
 
   private setupEnemyCollisions() {
     const { width, height } = this.scale;
     
     // Collider with walls
-    this.physics.add.collider(this.enemy, this.walls);
+    this.physics.add.collider(this.enemies, this.walls);
     
     // Overlap with arrows
-    this.physics.add.overlap(this.arrows, this.enemy, (enemy, arrow) => {
+    this.physics.add.overlap(this.arrows, this.enemies, (arrow, enemy) => {
       // Destroy the projectile (arrow), not the enemy
       arrow.destroy();
       
@@ -275,7 +276,7 @@ export class MainScene extends Phaser.Scene {
     });
 
     // Overlap with player (game over)
-    this.physics.add.overlap(this.player, this.enemy, () => {
+    this.physics.add.overlap(this.player, this.enemies, () => {
       if (this.isGameOver) {
         return;
       }
