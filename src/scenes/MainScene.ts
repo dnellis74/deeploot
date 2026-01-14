@@ -239,7 +239,7 @@ export class MainScene extends Phaser.Scene {
   private spawnEnemy() {
     const x = Phaser.Math.Between(100, this.scale.width - 100);
     const y = Phaser.Math.Between(120, this.scale.height - 160);
-    this.enemy = this.add.circle(x, y, 14, 0xf97316);
+    this.enemy = this.add.circle(x, y, 14, 0x22c55e); // Green color
     this.physics.add.existing(this.enemy);
     const enemyBody = this.enemy.body as Phaser.Physics.Arcade.Body;
     enemyBody.setVelocity(Phaser.Math.Between(-140, 140), Phaser.Math.Between(-140, 140));
@@ -257,12 +257,17 @@ export class MainScene extends Phaser.Scene {
     this.physics.add.collider(this.enemy, this.walls);
     
     // Overlap with arrows
-    this.physics.add.overlap(this.arrows, this.enemy, (arrow, enemy) => {
+    this.physics.add.overlap(this.arrows, this.enemy, (enemy, arrow) => {
+      // Destroy the projectile (arrow), not the enemy
       arrow.destroy();
-      enemy.destroy();
+      
+      // Turn enemy red, stop moving, but don't destroy
+      const enemyCircle = enemy as Phaser.GameObjects.Arc;
+      enemyCircle.setFillStyle(0xef4444); // Red color
+      const enemyBody = (enemy as any).body as Phaser.Physics.Arcade.Body;
+      enemyBody.setVelocity(0, 0); // Stop movement
       this.score += 25;
       this.scoreText.setText(`Score: ${this.score}`);
-      this.spawnEnemy();
     });
 
     // Overlap with player (game over)
