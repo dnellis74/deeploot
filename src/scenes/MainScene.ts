@@ -198,6 +198,17 @@ export class MainScene extends Phaser.Scene {
     this.createWall(width - wallThickness / 2, height / 2, wallThickness, height);
 
     this.placeTreasure();
+    
+    // Place a wall between player and treasure (50% room height)
+    const playerX = width / 2;
+    const playerY = height - 80;
+    const treasureX = this.treasure.x;
+    const treasureY = this.treasure.y;
+    const wallX = (playerX + treasureX) / 2;
+    const wallY = (playerY + treasureY) / 2;
+    const wallHeight = height * 0.5;
+    this.createWall(wallX, wallY, wallThickness, wallHeight);
+    
     for (let i = 0; i < 3; i++) {
       this.spawnEnemy();
     }
