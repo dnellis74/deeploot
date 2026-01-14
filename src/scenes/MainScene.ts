@@ -85,6 +85,14 @@ export class MainScene extends Phaser.Scene {
     // Set up enemy collisions (once for the group, works for all enemies)
     this.setupEnemyCollisions();
 
+    // Set up periodic enemy direction changes
+    this.time.addEvent({
+      delay: 2000, // Change direction every 2 seconds
+      callback: this.changeEnemyDirections,
+      callbackScope: this,
+      loop: true
+    });
+
     // Set up treasure collisions (will be re-established after each spawn)
     this.setupTreasureCollisions();
 
@@ -264,6 +272,17 @@ export class MainScene extends Phaser.Scene {
     enemyBody.setVelocity(Phaser.Math.Between(-140, 140), Phaser.Math.Between(-140, 140));
     enemyBody.setBounce(1, 1);
     enemyBody.setCollideWorldBounds(true);
+  }
+
+  private changeEnemyDirections() {
+    this.enemies.children.entries.forEach((child) => {
+      const enemy = child as Phaser.GameObjects.Arc;
+      const enemyBody = enemy.body as Phaser.Physics.Arcade.Body;
+      // Only change direction for active (green) enemies, not hit (red) ones
+      if (enemyBody && enemyBody.velocity.x !== 0 && enemyBody.velocity.y !== 0) {
+        enemyBody.setVelocity(Phaser.Math.Between(-140, 140), Phaser.Math.Between(-140, 140));
+      }
+    });
   }
 
   private setupEnemyCollisions() {
