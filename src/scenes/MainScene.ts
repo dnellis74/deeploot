@@ -84,11 +84,8 @@ export class MainScene extends Phaser.Scene {
     // Set up enemy collisions (will be re-established after each spawn)
     this.setupEnemyCollisions();
 
-    this.physics.add.overlap(this.player, this.treasure, () => {
-      this.score += 50;
-      this.scoreText.setText(`Score: ${this.score}`);
-      this.placeTreasure();
-    });
+    // Set up treasure collisions (will be re-established after each spawn)
+    this.setupTreasureCollisions();
 
     this.physics.add.overlap(this.player, this.door, () => {
       if (this.isGameOver) {
@@ -214,17 +211,29 @@ export class MainScene extends Phaser.Scene {
   }
 
   private placeTreasure() {
+    // Destroy existing treasure if it exists
+    if (this.treasure) {
+      this.treasure.destroy();
+    }
+
+    // Create a new treasure at a random position
     const padding = 80;
     const x = Phaser.Math.Between(padding, this.scale.width - padding);
     const y = Phaser.Math.Between(padding + 40, this.scale.height - padding);
+    
+    this.treasure = this.add.circle(x, y, 12, 0xfacc15);
+    this.physics.add.existing(this.treasure, true);
+    
+    // Re-establish collisions with the new treasure
+    this.setupTreasureCollisions();
+  }
 
-    if (!this.treasure) {
-      this.treasure = this.add.circle(x, y, 12, 0xfacc15);
-      this.physics.add.existing(this.treasure, true);
-      return;
-    }
-
-    this.treasure.setPosition(x, y);
+  private setupTreasureCollisions() {
+    this.physics.add.overlap(this.player, this.treasure, () => {
+      this.score += 50;
+      this.scoreText.setText(`Score: ${this.score}`);
+      this.placeTreasure();
+    });
   }
 
   private spawnEnemy() {
