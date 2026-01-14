@@ -1,6 +1,94 @@
 import Phaser from "phaser";
 
 export class MainScene extends Phaser.Scene {
+  // ============================================================================
+  // Constants - Colors
+  // ============================================================================
+  private static readonly COLOR_PLAYER = 0x38bdf8;
+  private static readonly COLOR_DOOR = 0x22c55e;
+  private static readonly COLOR_ENEMY = 0x22c55e;
+  private static readonly COLOR_ENEMY_HIT = 0xef4444;
+  private static readonly COLOR_TREASURE = 0xfacc15;
+  private static readonly COLOR_ARROW = 0xfacc15;
+  private static readonly COLOR_WALL = 0x1f2937;
+  private static readonly COLOR_GAME_OVER = 0xf97316;
+  private static readonly COLOR_TEXT_PRIMARY = "#e6edf3";
+  private static readonly COLOR_TEXT_SECONDARY = "#94a3b8";
+  private static readonly COLOR_TEXT_SCORE = "#e2e8f0";
+  private static readonly COLOR_TEXT_GAME_OVER = "#fca5a5";
+
+  // ============================================================================
+  // Constants - Sizes
+  // ============================================================================
+  private static readonly SIZE_ENEMY_RADIUS = 14;
+  private static readonly SIZE_TREASURE_RADIUS = 12;
+  private static readonly SIZE_ARROW_WIDTH = 6;
+  private static readonly SIZE_ARROW_HEIGHT = 12;
+  private static readonly SIZE_PLAYER_WIDTH = 12;
+  private static readonly SIZE_PLAYER_HEIGHT = 16;
+  private static readonly SIZE_WALL_THICKNESS = 24;
+  private static readonly SIZE_DOOR_WIDTH = 90;
+  private static readonly SIZE_TITLE_FONT = "20px";
+  private static readonly SIZE_INSTRUCTION_FONT = "14px";
+  private static readonly SIZE_SCORE_FONT = "16px";
+  private static readonly SIZE_ROOM_FONT = "14px";
+  private static readonly SIZE_GAME_OVER_FONT = "36px";
+
+  // ============================================================================
+  // Constants - Speeds
+  // ============================================================================
+  private static readonly SPEED_PLAYER = 200;
+  private static readonly SPEED_ARROW = 400;
+  private static readonly SPEED_ENEMY = 140;
+  private static readonly SPEED_DIAGONAL_MULTIPLIER = 0.7071;
+
+  // ============================================================================
+  // Constants - Positions & Offsets
+  // ============================================================================
+  private static readonly POS_TITLE_Y = 24;
+  private static readonly POS_INSTRUCTION_Y = 48;
+  private static readonly POS_PLAYER_OFFSET_Y = 80;
+  private static readonly POS_UI_X = 16;
+  private static readonly POS_UI_SCORE_Y = 16;
+  private static readonly POS_UI_ROOM_Y = 36;
+  private static readonly POS_PADDING = 80;
+  private static readonly POS_PADDING_TREASURE_Y_OFFSET = 40;
+  private static readonly POS_SPAWN_MIN_X = 100;
+  private static readonly POS_SPAWN_MIN_Y = 120;
+  private static readonly POS_SPAWN_MAX_Y_OFFSET = 160;
+  private static readonly POS_CLEANUP_OFFSET = 50;
+
+  // ============================================================================
+  // Constants - Game Configuration
+  // ============================================================================
+  private static readonly CONFIG_ENEMY_COUNT = 3;
+  private static readonly CONFIG_ENEMY_DIRECTION_CHANGE_DELAY = 2000;
+  private static readonly CONFIG_FIRE_RATE_DELAY = 200;
+  private static readonly CONFIG_WALL_HEIGHT_RATIO = 0.5;
+  private static readonly CONFIG_SCORE_TREASURE = 50;
+  private static readonly CONFIG_SCORE_ENEMY = 25;
+  private static readonly CONFIG_ANGLE_OFFSET = -90;
+
+  // ============================================================================
+  // Constants - Player Triangle Points
+  // ============================================================================
+  private static readonly PLAYER_TRIANGLE_POINTS = {
+    x1: 0,
+    y1: -8,
+    x2: -6,
+    y2: 8,
+    x3: 6,
+    y3: 8
+  };
+
+  // ============================================================================
+  // Constants - Direction Angles
+  // ============================================================================
+  private static readonly DIRECTION_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
+
+  // ============================================================================
+  // Instance Properties
+  // ============================================================================
   private player!: Phaser.GameObjects.Triangle;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private fireKey!: Phaser.Input.Keyboard.Key;
@@ -24,23 +112,35 @@ export class MainScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
 
-    this.add.text(width / 2, 24, "Venture Arcade", {
-      fontSize: "20px",
-      color: "#e6edf3"
+    this.add.text(width / 2, MainScene.POS_TITLE_Y, "Venture Arcade", {
+      fontSize: MainScene.SIZE_TITLE_FONT,
+      color: MainScene.COLOR_TEXT_PRIMARY
     }).setOrigin(0.5, 0);
 
     this.add.text(
       width / 2,
-      48,
+      MainScene.POS_INSTRUCTION_Y,
       "Move: \u2190 \u2192 \u2191 \u2193  |  Fire: Space  |  Grab treasure  |  Exit via door",
-      { fontSize: "14px", color: "#94a3b8" }
+      { fontSize: MainScene.SIZE_INSTRUCTION_FONT, color: MainScene.COLOR_TEXT_SECONDARY }
     ).setOrigin(0.5, 0);
 
     // Create player as a triangle (arrow pointing up initially)
-    this.player = this.add.triangle(width / 2, height - 80, 0, -8, -6, 8, 6, 8, 0x38bdf8);
+    const playerX = width / 2;
+    const playerY = height - MainScene.POS_PLAYER_OFFSET_Y;
+    this.player = this.add.triangle(
+      playerX,
+      playerY,
+      MainScene.PLAYER_TRIANGLE_POINTS.x1,
+      MainScene.PLAYER_TRIANGLE_POINTS.y1,
+      MainScene.PLAYER_TRIANGLE_POINTS.x2,
+      MainScene.PLAYER_TRIANGLE_POINTS.y2,
+      MainScene.PLAYER_TRIANGLE_POINTS.x3,
+      MainScene.PLAYER_TRIANGLE_POINTS.y3,
+      MainScene.COLOR_PLAYER
+    );
     this.physics.add.existing(this.player);
-    const playerPhysicsBody = this.player.body as Phaser.Physics.Arcade.Body;
-    playerPhysicsBody.setSize(12, 16);
+    const playerPhysicsBody = this.getPlayerBody();
+    playerPhysicsBody.setSize(MainScene.SIZE_PLAYER_WIDTH, MainScene.SIZE_PLAYER_HEIGHT);
     playerPhysicsBody.setCollideWorldBounds(true);
     this.lastDirection = 0; // Start facing up
     this.updatePlayerVisual();
@@ -53,28 +153,28 @@ export class MainScene extends Phaser.Scene {
       classType: Phaser.GameObjects.Rectangle, // Tells the group to create Rectangles
       createCallback: (obj) => {
           const rect = obj as Phaser.GameObjects.Rectangle;
-          rect.setSize(6, 12);
-          rect.setFillStyle(0xfacc15);
+          rect.setSize(MainScene.SIZE_ARROW_WIDTH, MainScene.SIZE_ARROW_HEIGHT);
+          rect.setFillStyle(MainScene.COLOR_ARROW);
       }
   });
 
     // Create door once - it stays stationary on the wall
-    const wallThickness = 24;
-    const doorWidth = 90;
+    const wallThickness = MainScene.SIZE_WALL_THICKNESS;
+    const doorWidth = MainScene.SIZE_DOOR_WIDTH;
     const doorX = width / 2;
     const doorY = wallThickness / 2;
-    this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, 0x22c55e);
+    this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, MainScene.COLOR_DOOR);
     this.physics.add.existing(this.door, true);
 
     this.buildRoom();
 
-    this.scoreText = this.add.text(16, 16, "Score: 0", {
-      fontSize: "16px",
-      color: "#e2e8f0"
+    this.scoreText = this.add.text(MainScene.POS_UI_X, MainScene.POS_UI_SCORE_Y, "Score: 0", {
+      fontSize: MainScene.SIZE_SCORE_FONT,
+      color: MainScene.COLOR_TEXT_SCORE
     });
-    this.roomText = this.add.text(16, 36, "Room: 1", {
-      fontSize: "14px",
-      color: "#94a3b8"
+    this.roomText = this.add.text(MainScene.POS_UI_X, MainScene.POS_UI_ROOM_Y, "Room: 1", {
+      fontSize: MainScene.SIZE_ROOM_FONT,
+      color: MainScene.COLOR_TEXT_SECONDARY
     });
 
     this.physics.add.collider(this.player, this.walls);
@@ -87,7 +187,7 @@ export class MainScene extends Phaser.Scene {
 
     // Set up periodic enemy direction changes
     this.time.addEvent({
-      delay: 2000, // Change direction every 2 seconds
+      delay: MainScene.CONFIG_ENEMY_DIRECTION_CHANGE_DELAY,
       callback: this.changeEnemyDirections,
       callbackScope: this,
       loop: true
@@ -113,8 +213,8 @@ export class MainScene extends Phaser.Scene {
       return;
     }
 
-    const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
-    const speed = 200;
+    const playerBody = this.getPlayerBody();
+    const speed = MainScene.SPEED_PLAYER;
     let velocityX = 0;
     let velocityY = 0;
 
@@ -131,8 +231,8 @@ export class MainScene extends Phaser.Scene {
     }
 
     if (velocityX !== 0 && velocityY !== 0) {
-      velocityX *= 0.7071;
-      velocityY *= 0.7071;
+      velocityX *= MainScene.SPEED_DIAGONAL_MULTIPLIER;
+      velocityY *= MainScene.SPEED_DIAGONAL_MULTIPLIER;
     }
 
     // Update direction based on movement
@@ -143,7 +243,7 @@ export class MainScene extends Phaser.Scene {
     // Handle firing (only if no arrows exist)
     if (this.fireKey.isDown && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
       this.shootArrow();
-      this.nextFire = this.time.now + 200; // Fire rate: 200ms between shots
+      this.nextFire = this.time.now + MainScene.CONFIG_FIRE_RATE_DELAY;
     }
 
     playerBody.setVelocity(velocityX, velocityY);
@@ -151,6 +251,10 @@ export class MainScene extends Phaser.Scene {
     // Clean up arrows that go off screen
     this.cleanupArrows();
   }
+
+  // ============================================================================
+  // Update Methods - Player Movement & Actions
+  // ============================================================================
 
   private updatePlayerDirection(velocityX: number, velocityY: number) {
     // Determine direction (0-7): Up, Up-Right, Right, Down-Right, Down, Down-Left, Left, Up-Left
@@ -179,111 +283,60 @@ export class MainScene extends Phaser.Scene {
   private updatePlayerVisual() {
     // Rotate player triangle to point in the direction of movement
     // Directions: 0=Up, 1=Up-Right, 2=Right, 3=Down-Right, 4=Down, 5=Down-Left, 6=Left, 7=Up-Left
-    const angles = [0, 45, 90, 135, 180, 225, 270, 315];
-    this.player.setRotation(Phaser.Math.DegToRad(angles[this.lastDirection]));
+    this.player.setRotation(Phaser.Math.DegToRad(MainScene.DIRECTION_ANGLES[this.lastDirection]));
   }
 
-  private buildRoom() {
+  private shootArrow() {
+    const arrowSpeed = MainScene.SPEED_ARROW;
+    const angle = MainScene.DIRECTION_ANGLES[this.lastDirection];
+    const angleRadians = Phaser.Math.DegToRad(angle + MainScene.CONFIG_ANGLE_OFFSET);
+
+    // 1. Get/Create from the Physics Group directly
+    // This handles adding to the group and physics setup in one go
+    const arrow = this.arrows.get(this.player.x, this.player.y) as Phaser.GameObjects.Rectangle;
+
+    if (arrow) {
+        arrow.setActive(true).setVisible(true);
+        
+        // 2. Set rotation
+        arrow.setRotation(angleRadians);
+        
+        // 3. Set Velocity (Cast to Physics Body)
+        const body = this.getArrowBody(arrow);
+        body.setVelocity(
+            Math.cos(angleRadians) * arrowSpeed,
+            Math.sin(angleRadians) * arrowSpeed
+        );
+
+        // 4. Cleanup: Destroy arrow if it leaves the world bounds
+        body.setCollideWorldBounds(true);
+        body.onWorldBounds = true; 
+        // Note: You'll need this.physics.world.on('worldbounds', ...) to actually kill it
+    }
+}
+
+  private cleanupArrows() {
     const { width, height } = this.scale;
-    const wallThickness = 24;
-    const doorWidth = 90;
-
-    this.walls.clear(true, true);
-    this.arrows.clear(true, true);
-    this.enemies.clear(true, true);
-    this.treasure?.destroy();
-
-    const doorX = width / 2;
-    const doorY = wallThickness / 2;
-    const doorHalf = doorWidth / 2;
-
-    // Create top wall with door opening (door stays stationary)
-    this.createWall(doorX - doorHalf - (width / 2 - doorHalf) / 2, doorY, width / 2 - doorHalf, wallThickness);
-    this.createWall(doorX + doorHalf + (width / 2 - doorHalf) / 2, doorY, width / 2 - doorHalf, wallThickness);
-    // Create bottom, left, and right walls
-    this.createWall(width / 2, height - wallThickness / 2, width, wallThickness);
-    this.createWall(wallThickness / 2, height / 2, wallThickness, height);
-    this.createWall(width - wallThickness / 2, height / 2, wallThickness, height);
-
-    this.placeTreasure();
+    const arrowsToDestroy: Phaser.GameObjects.Rectangle[] = [];
+    const cleanupOffset = MainScene.POS_CLEANUP_OFFSET;
     
-    // Place a wall between player and treasure (50% room height)
-    const playerX = width / 2;
-    const playerY = height - 80;
-    const treasureX = this.treasure.x;
-    const treasureY = this.treasure.y;
-    const wallX = (playerX + treasureX) / 2;
-    const wallY = (playerY + treasureY) / 2;
-    const wallHeight = height * 0.5;
-    this.createWall(wallX, wallY, wallThickness, wallHeight);
-    
-    for (let i = 0; i < 3; i++) {
-      this.spawnEnemy();
-    }
-
-    const playerBody = this.player.body as Phaser.Physics.Arcade.Body;
-    playerBody.setVelocity(0, 0);
-    this.player.setPosition(width / 2, height - 80);
-  }
-
-  private createWall(x: number, y: number, width: number, height: number) {
-    const wall = this.add.rectangle(x, y, width, height, 0x1f2937);
-    this.physics.add.existing(wall, true);
-    this.walls.add(wall);
-  }
-
-  private placeTreasure() {
-    // Destroy existing treasure if it exists
-    if (this.treasure) {
-      this.treasure.destroy();
-    }
-
-    // Create a new treasure at a random position
-    const padding = 80;
-    const x = Phaser.Math.Between(padding, this.scale.width - padding);
-    const y = Phaser.Math.Between(padding + 40, this.scale.height - padding);
-    
-    this.treasure = this.add.circle(x, y, 12, 0xfacc15);
-    this.physics.add.existing(this.treasure, true);
-    
-    // Re-establish collisions with the new treasure
-    this.setupTreasureCollisions();
-  }
-
-  private setupTreasureCollisions() {
-    this.physics.add.overlap(this.player, this.treasure, () => {
-      this.score += 50;
-      this.scoreText.setText(`Score: ${this.score}`);
-      // Destroy treasure when collected (new treasure spawns only at start of new room)
-      if (this.treasure) {
-        this.treasure.destroy();
-        this.treasure = null as any;
+    this.forEachArrow((arrow) => {
+      if (
+        arrow.x < -cleanupOffset ||
+        arrow.x > width + cleanupOffset ||
+        arrow.y < -cleanupOffset ||
+        arrow.y > height + cleanupOffset
+      ) {
+        arrowsToDestroy.push(arrow);
       }
     });
+    
+    arrowsToDestroy.forEach((arrow) => arrow.destroy());
   }
 
-  private spawnEnemy() {
-    const x = Phaser.Math.Between(100, this.scale.width - 100);
-    const y = Phaser.Math.Between(120, this.scale.height - 160);
-    const enemy = this.add.circle(x, y, 14, 0x22c55e); // Green color
-    this.enemies.add(enemy);
-    this.physics.add.existing(enemy);
-    const enemyBody = enemy.body as Phaser.Physics.Arcade.Body;
-    enemyBody.setVelocity(Phaser.Math.Between(-140, 140), Phaser.Math.Between(-140, 140));
-    enemyBody.setBounce(1, 1);
-    enemyBody.setCollideWorldBounds(true);
-  }
-
-  private changeEnemyDirections() {
-    this.enemies.children.entries.forEach((child) => {
-      const enemy = child as Phaser.GameObjects.Arc;
-      const enemyBody = enemy.body as Phaser.Physics.Arcade.Body;
-      // Only change direction for active (green) enemies, not hit (red) ones
-      if (enemyBody && enemyBody.velocity.x !== 0 && enemyBody.velocity.y !== 0) {
-        enemyBody.setVelocity(Phaser.Math.Between(-140, 140), Phaser.Math.Between(-140, 140));
-      }
-    });
-  }
+  // ============================================================================
+  // Collision Handlers
+  // ============================================================================
 
   private setupEnemyCollisions() {
     const { width, height } = this.scale;
@@ -298,11 +351,10 @@ export class MainScene extends Phaser.Scene {
       
       // Turn enemy red, stop moving, but don't destroy
       const enemyCircle = enemy as Phaser.GameObjects.Arc;
-      enemyCircle.setFillStyle(0xef4444); // Red color
-      const enemyBody = (enemy as any).body as Phaser.Physics.Arcade.Body;
+      enemyCircle.setFillStyle(MainScene.COLOR_ENEMY_HIT);
+      const enemyBody = this.getEnemyBody(enemyCircle);
       enemyBody.setVelocity(0, 0); // Stop movement
-      this.score += 25;
-      this.scoreText.setText(`Score: ${this.score}`);
+      this.addScore(MainScene.CONFIG_SCORE_ENEMY);
     });
 
     // Overlap with player (game over)
@@ -312,60 +364,175 @@ export class MainScene extends Phaser.Scene {
       }
       this.isGameOver = true;
       this.physics.pause();
-      this.player.setFillStyle(0xf97316);
+      this.player.setFillStyle(MainScene.COLOR_GAME_OVER);
       this.add.text(width / 2, height / 2, "Game Over", {
-        fontSize: "36px",
-        color: "#fca5a5"
+        fontSize: MainScene.SIZE_GAME_OVER_FONT,
+        color: MainScene.COLOR_TEXT_GAME_OVER
       }).setOrigin(0.5);
     });
   }
 
-  private shootArrow() {
-    const arrowSpeed = 400;
-    const angles = [0, 45, 90, 135, 180, 225, 270, 315];
-    const angle = angles[this.lastDirection];
-    const angleRad = Phaser.Math.DegToRad(angle - 90);
-
-    // 1. Get/Create from the Physics Group directly
-    // This handles adding to the group and physics setup in one go
-    const arrow = this.arrows.get(this.player.x, this.player.y) as Phaser.GameObjects.Rectangle;
-
-    if (arrow) {
-        arrow.setActive(true).setVisible(true);
-        
-        // 2. Set rotation
-        arrow.setRotation(angleRad);
-        
-        // 3. Set Velocity (Cast to Physics Body)
-        const body = arrow.body as Phaser.Physics.Arcade.Body;
-        body.setVelocity(
-            Math.cos(angleRad) * arrowSpeed,
-            Math.sin(angleRad) * arrowSpeed
-        );
-
-        // 4. Cleanup: Destroy arrow if it leaves the world bounds
-        body.setCollideWorldBounds(true);
-        body.onWorldBounds = true; 
-        // Note: You'll need this.physics.world.on('worldbounds', ...) to actually kill it
-    }
-}
-
-  private cleanupArrows() {
-    const { width, height } = this.scale;
-    const arrowsToDestroy: Phaser.GameObjects.Rectangle[] = [];
-    
-    this.arrows.children.entries.forEach((child) => {
-      const arrow = child as Phaser.GameObjects.Rectangle;
-      if (
-        arrow.x < -50 ||
-        arrow.x > width + 50 ||
-        arrow.y < -50 ||
-        arrow.y > height + 50
-      ) {
-        arrowsToDestroy.push(arrow);
+  private setupTreasureCollisions() {
+    this.physics.add.overlap(this.player, this.treasure, () => {
+      this.addScore(MainScene.CONFIG_SCORE_TREASURE);
+      // Destroy treasure when collected (new treasure spawns only at start of new room)
+      if (this.treasure) {
+        this.treasure.destroy();
+        this.treasure = null as any;
       }
     });
+  }
+
+  // ============================================================================
+  // Game Logic - Room Building & Entity Management
+  // ============================================================================
+
+  private buildRoom() {
+    const { width, height } = this.scale;
+    const wallThickness = MainScene.SIZE_WALL_THICKNESS;
+    const doorWidth = MainScene.SIZE_DOOR_WIDTH;
+
+    this.walls.clear(true, true);
+    this.arrows.clear(true, true);
+    this.enemies.clear(true, true);
+    this.treasure?.destroy();
+
+    const doorX = width / 2;
+    const doorY = wallThickness / 2;
+    const doorHalfWidth = doorWidth / 2;
+
+    // Create top wall with door opening (door stays stationary)
+    const topWallSegmentWidth = width / 2 - doorHalfWidth;
+    this.createWall(doorX - doorHalfWidth - topWallSegmentWidth / 2, doorY, topWallSegmentWidth, wallThickness);
+    this.createWall(doorX + doorHalfWidth + topWallSegmentWidth / 2, doorY, topWallSegmentWidth, wallThickness);
+    // Create bottom, left, and right walls
+    this.createWall(width / 2, height - wallThickness / 2, width, wallThickness);
+    this.createWall(wallThickness / 2, height / 2, wallThickness, height);
+    this.createWall(width - wallThickness / 2, height / 2, wallThickness, height);
+
+    this.placeTreasure();
     
-    arrowsToDestroy.forEach((arrow) => arrow.destroy());
+    // Place a wall between player and treasure
+    const playerX = width / 2;
+    const playerY = height - MainScene.POS_PLAYER_OFFSET_Y;
+    const treasureX = this.treasure.x;
+    const treasureY = this.treasure.y;
+    const wallX = (playerX + treasureX) / 2;
+    const wallY = (playerY + treasureY) / 2;
+    const wallHeight = height * MainScene.CONFIG_WALL_HEIGHT_RATIO;
+    this.createWall(wallX, wallY, wallThickness, wallHeight);
+    
+    for (let i = 0; i < MainScene.CONFIG_ENEMY_COUNT; i++) {
+      this.spawnEnemy();
+    }
+
+    const playerBody = this.getPlayerBody();
+    playerBody.setVelocity(0, 0);
+    this.player.setPosition(playerX, playerY);
+  }
+
+  private placeTreasure() {
+    // Destroy existing treasure if it exists
+    if (this.treasure) {
+      this.treasure.destroy();
+    }
+
+    // Create a new treasure at a random position
+    const padding = MainScene.POS_PADDING;
+    const x = Phaser.Math.Between(padding, this.scale.width - padding);
+    const y = Phaser.Math.Between(padding + MainScene.POS_PADDING_TREASURE_Y_OFFSET, this.scale.height - padding);
+    
+    this.treasure = this.add.circle(x, y, MainScene.SIZE_TREASURE_RADIUS, MainScene.COLOR_TREASURE);
+    this.physics.add.existing(this.treasure, true);
+    
+    // Re-establish collisions with the new treasure
+    this.setupTreasureCollisions();
+  }
+
+  private spawnEnemy() {
+    const x = Phaser.Math.Between(MainScene.POS_SPAWN_MIN_X, this.scale.width - MainScene.POS_SPAWN_MIN_X);
+    const y = Phaser.Math.Between(MainScene.POS_SPAWN_MIN_Y, this.scale.height - MainScene.POS_SPAWN_MAX_Y_OFFSET);
+    const enemy = this.add.circle(x, y, MainScene.SIZE_ENEMY_RADIUS, MainScene.COLOR_ENEMY);
+    this.enemies.add(enemy);
+    this.physics.add.existing(enemy);
+    const enemyBody = this.getEnemyBody(enemy);
+    this.setRandomEnemyVelocity(enemyBody);
+    enemyBody.setBounce(1, 1);
+    enemyBody.setCollideWorldBounds(true);
+  }
+
+  private changeEnemyDirections() {
+    this.forEachActiveEnemy((enemy, enemyBody) => {
+      // Only change direction for active (green) enemies, not hit (red) ones
+      if (enemyBody.velocity.x !== 0 && enemyBody.velocity.y !== 0) {
+        this.setRandomEnemyVelocity(enemyBody);
+      }
+    });
+  }
+
+  // ============================================================================
+  // Helper Methods - Utilities & Type Casting
+  // ============================================================================
+
+  private createWall(x: number, y: number, width: number, height: number) {
+    const wall = this.add.rectangle(x, y, width, height, MainScene.COLOR_WALL);
+    this.physics.add.existing(wall, true);
+    this.walls.add(wall);
+  }
+
+  // ============================================================================
+  // Helper Methods - Type Casting & Common Patterns
+  // ============================================================================
+
+  private getPlayerBody(): Phaser.Physics.Arcade.Body {
+    return this.player.body as Phaser.Physics.Arcade.Body;
+  }
+
+  private getEnemyBody(enemy: Phaser.GameObjects.Arc): Phaser.Physics.Arcade.Body {
+    return enemy.body as Phaser.Physics.Arcade.Body;
+  }
+
+  private getArrowBody(arrow: Phaser.GameObjects.Rectangle): Phaser.Physics.Arcade.Body {
+    return arrow.body as Phaser.Physics.Arcade.Body;
+  }
+
+  private forEachActiveEnemy(
+    callback: (enemy: Phaser.GameObjects.Arc, enemyBody: Phaser.Physics.Arcade.Body) => void
+  ): void {
+    this.enemies.children.entries.forEach((child) => {
+      const enemy = child as Phaser.GameObjects.Arc;
+      const enemyBody = this.getEnemyBody(enemy);
+      if (enemyBody) {
+        callback(enemy, enemyBody);
+      }
+    });
+  }
+
+  private forEachArrow(callback: (arrow: Phaser.GameObjects.Rectangle) => void): void {
+    this.arrows.children.entries.forEach((child) => {
+      const arrow = child as Phaser.GameObjects.Rectangle;
+      callback(arrow);
+    });
+  }
+
+  private setRandomEnemyVelocity(enemyBody: Phaser.Physics.Arcade.Body): void {
+    const speed = MainScene.SPEED_ENEMY;
+    enemyBody.setVelocity(
+      Phaser.Math.Between(-speed, speed),
+      Phaser.Math.Between(-speed, speed)
+    );
+  }
+
+  private addScore(points: number): void {
+    this.score += points;
+    this.scoreText.setText(`Score: ${this.score}`);
+  }
+
+  private getCenterX(): number {
+    return this.scale.width / 2;
+  }
+
+  private getCenterY(): number {
+    return this.scale.height / 2;
   }
 }
