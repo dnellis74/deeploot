@@ -48,7 +48,14 @@ export class MainScene extends Phaser.Scene {
     this.cursors = this.input.keyboard!.createCursorKeys();
     this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.walls = this.physics.add.staticGroup();
-    this.arrows = this.physics.add.group();
+    this.arrows = this.arrows = this.physics.add.group({
+      classType: Phaser.GameObjects.Rectangle, // Tells the group to create Rectangles
+      createCallback: (obj) => {
+          const rect = obj as Phaser.GameObjects.Rectangle;
+          rect.setSize(6, 12);
+          rect.setFillStyle(0xfacc15);
+      }
+  });
 
     // Create door once - it stays stationary on the wall
     const wallThickness = 24;
@@ -252,38 +259,38 @@ export class MainScene extends Phaser.Scene {
     const arrowSpeed = 400;
     const angles = [0, 45, 90, 135, 180, 225, 270, 315];
     const angle = angles[this.lastDirection];
-    const angleRad = Phaser.Math.DegToRad(angle);
+    const angleRad = Phaser.Math.DegToRad(angle - 90); // Add 90 degrees for 90 degree clockwise offset
 
-    // Create arrow as a small triangle
-    const arrow = this.add.triangle(
-      this.player.x,
-      this.player.y,
-      0, -4,
-      -3, 4,
-      3, 4,
-      0xfacc15
-    );
-    arrow.setRotation(angleRad);
-    
-    // Add physics to arrow
-    this.physics.add.existing(arrow);
-    const arrowBody = arrow.body as Phaser.Physics.Arcade.Body;
-    
-    // Set velocity based on direction
-    const velocityX = Math.cos(angleRad) * arrowSpeed;
-    const velocityY = Math.sin(angleRad) * arrowSpeed;
-    arrowBody.setVelocity(velocityX, velocityY);
-    
-    // Add to group after physics is set up
-    this.arrows.add(arrow);
-  }
+    // 1. Get/Create from the Physics Group directly
+    // This handles adding to the group and physics setup in one go
+    const arrow = this.arrows.get(this.player.x, this.player.y) as Phaser.GameObjects.Rectangle;
+
+    if (arrow) {
+        arrow.setActive(true).setVisible(true);
+        
+        // 2. Set rotation (adjust for 90 degree clockwise offset)
+        arrow.setRotation(angleRad);
+        
+        // 3. Set Velocity (Cast to Physics Body)
+        const body = arrow.body as Phaser.Physics.Arcade.Body;
+        body.setVelocity(
+            Math.cos(angleRad) * arrowSpeed,
+            Math.sin(angleRad) * arrowSpeed
+        );
+
+        // 4. Cleanup: Destroy arrow if it leaves the world bounds
+        body.setCollideWorldBounds(true);
+        body.onWorldBounds = true; 
+        // Note: You'll need this.physics.world.on('worldbounds', ...) to actually kill it
+    }
+}
 
   private cleanupArrows() {
     const { width, height } = this.scale;
-    const arrowsToDestroy: Phaser.GameObjects.Triangle[] = [];
+    const arrowsToDestroy: Phaser.GameObjects.Rectangle[] = [];
     
     this.arrows.children.entries.forEach((child) => {
-      const arrow = child as Phaser.GameObjects.Triangle;
+      const arrow = child as Phaser.GameObjects.Rectangle;
       if (
         arrow.x < -50 ||
         arrow.x > width + 50 ||
