@@ -77,18 +77,12 @@ export class MainScene extends Phaser.Scene {
     });
 
     this.physics.add.collider(this.player, this.walls);
-    this.physics.add.collider(this.enemy, this.walls);
     this.physics.add.collider(this.arrows, this.walls, (arrow) => {
       arrow.destroy();
     });
 
-    this.physics.add.overlap(this.arrows, this.enemy, (arrow, enemy) => {
-      arrow.destroy();
-      enemy.destroy();
-      this.score += 25;
-      this.scoreText.setText(`Score: ${this.score}`);
-      this.spawnEnemy();
-    });
+    // Set up enemy collisions (will be re-established after each spawn)
+    this.setupEnemyCollisions();
 
     this.physics.add.overlap(this.player, this.treasure, () => {
       this.score += 50;
@@ -105,18 +99,7 @@ export class MainScene extends Phaser.Scene {
       this.buildRoom();
     });
 
-    this.physics.add.overlap(this.player, this.enemy, () => {
-      if (this.isGameOver) {
-        return;
-      }
-      this.isGameOver = true;
-      this.physics.pause();
-      this.player.setFillStyle(0xf97316);
-      this.add.text(width / 2, height / 2, "Game Over", {
-        fontSize: "36px",
-        color: "#fca5a5"
-      }).setOrigin(0.5);
-    });
+    // Player-enemy overlap will be set up in setupEnemyCollisions()
   }
 
   update() {
@@ -151,8 +134,8 @@ export class MainScene extends Phaser.Scene {
       this.updatePlayerDirection(velocityX, velocityY);
     }
 
-    // Handle firing
-    if (this.fireKey.isDown && this.time.now > this.nextFire) {
+    // Handle firing (only if no arrows exist)
+    if (this.fireKey.isDown && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
       this.shootArrow();
       this.nextFire = this.time.now + 200; // Fire rate: 200ms between shots
     }
@@ -253,13 +236,46 @@ export class MainScene extends Phaser.Scene {
     enemyBody.setVelocity(Phaser.Math.Between(-140, 140), Phaser.Math.Between(-140, 140));
     enemyBody.setBounce(1, 1);
     enemyBody.setCollideWorldBounds(true);
+    
+    // Re-establish collisions with the new enemy
+    this.setupEnemyCollisions();
+  }
+
+  private setupEnemyCollisions() {
+    const { width, height } = this.scale;
+    
+    // Collider with walls
+    this.physics.add.collider(this.enemy, this.walls);
+    
+    // Overlap with arrows
+    this.physics.add.overlap(this.arrows, this.enemy, (arrow, enemy) => {
+      arrow.destroy();
+      enemy.destroy();
+      this.score += 25;
+      this.scoreText.setText(`Score: ${this.score}`);
+      this.spawnEnemy();
+    });
+
+    // Overlap with player (game over)
+    this.physics.add.overlap(this.player, this.enemy, () => {
+      if (this.isGameOver) {
+        return;
+      }
+      this.isGameOver = true;
+      this.physics.pause();
+      this.player.setFillStyle(0xf97316);
+      this.add.text(width / 2, height / 2, "Game Over", {
+        fontSize: "36px",
+        color: "#fca5a5"
+      }).setOrigin(0.5);
+    });
   }
 
   private shootArrow() {
     const arrowSpeed = 400;
     const angles = [0, 45, 90, 135, 180, 225, 270, 315];
     const angle = angles[this.lastDirection];
-    const angleRad = Phaser.Math.DegToRad(angle - 90); // Add 90 degrees for 90 degree clockwise offset
+    const angleRad = Phaser.Math.DegToRad(angle - 90);
 
     // 1. Get/Create from the Physics Group directly
     // This handles adding to the group and physics setup in one go
@@ -268,7 +284,7 @@ export class MainScene extends Phaser.Scene {
     if (arrow) {
         arrow.setActive(true).setVisible(true);
         
-        // 2. Set rotation (adjust for 90 degree clockwise offset)
+        // 2. Set rotation
         arrow.setRotation(angleRad);
         
         // 3. Set Velocity (Cast to Physics Body)
