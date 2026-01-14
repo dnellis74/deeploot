@@ -5,7 +5,7 @@ export class MainScene extends Phaser.Scene {
   // Constants - Colors
   // ============================================================================
   private static readonly COLOR_PLAYER = 0x38bdf8;
-  private static readonly COLOR_DOOR = 0x22c55e;
+  private static readonly COLOR_DOOR = 0x8B4513;
   private static readonly COLOR_ENEMY = 0x22c55e;
   private static readonly COLOR_ENEMY_HIT = 0xef4444;
   private static readonly COLOR_TREASURE = 0xfacc15;
@@ -163,7 +163,7 @@ export class MainScene extends Phaser.Scene {
     const wallThickness = MainScene.SIZE_WALL_THICKNESS;
     const doorWidth = MainScene.SIZE_DOOR_WIDTH;
     const doorX = width / 2;
-    const doorY = wallThickness / 2;
+    const doorY = height - wallThickness / 2;
     this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, MainScene.COLOR_DOOR);
     this.physics.add.existing(this.door, true);
 
@@ -399,15 +399,16 @@ export class MainScene extends Phaser.Scene {
     this.treasure?.destroy();
 
     const doorX = width / 2;
-    const doorY = wallThickness / 2;
+    const doorY = height - wallThickness / 2;
     const doorHalfWidth = doorWidth / 2;
 
-    // Create top wall with door opening (door stays stationary)
-    const topWallSegmentWidth = width / 2 - doorHalfWidth;
-    this.createWall(doorX - doorHalfWidth - topWallSegmentWidth / 2, doorY, topWallSegmentWidth, wallThickness);
-    this.createWall(doorX + doorHalfWidth + topWallSegmentWidth / 2, doorY, topWallSegmentWidth, wallThickness);
-    // Create bottom, left, and right walls
-    this.createWall(width / 2, height - wallThickness / 2, width, wallThickness);
+    // Create top wall (full wall)
+    this.createWall(width / 2, wallThickness / 2, width, wallThickness);
+    // Create bottom wall with door opening (door stays stationary)
+    const bottomWallSegmentWidth = width / 2 - doorHalfWidth;
+    this.createWall(doorX - doorHalfWidth - bottomWallSegmentWidth / 2, doorY, bottomWallSegmentWidth, wallThickness);
+    this.createWall(doorX + doorHalfWidth + bottomWallSegmentWidth / 2, doorY, bottomWallSegmentWidth, wallThickness);
+    // Create left and right walls
     this.createWall(wallThickness / 2, height / 2, wallThickness, height);
     this.createWall(width - wallThickness / 2, height / 2, wallThickness, height);
 
