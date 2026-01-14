@@ -68,6 +68,7 @@ export class MainScene extends Phaser.Scene {
   private static readonly CONFIG_SCORE_TREASURE = 50;
   private static readonly CONFIG_SCORE_ENEMY = 25;
   private static readonly CONFIG_ANGLE_OFFSET = -90;
+  private static readonly UI_Z_DEPTH = 1000;
 
   // ============================================================================
   // Constants - Player Triangle Points
@@ -115,14 +116,14 @@ export class MainScene extends Phaser.Scene {
     this.add.text(width / 2, MainScene.POS_TITLE_Y, "Venture Arcade", {
       fontSize: MainScene.SIZE_TITLE_FONT,
       color: MainScene.COLOR_TEXT_PRIMARY
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setDepth(MainScene.UI_Z_DEPTH);
 
     this.add.text(
       width / 2,
       MainScene.POS_INSTRUCTION_Y,
       "Move: \u2190 \u2192 \u2191 \u2193  |  Fire: Space  |  Grab treasure  |  Exit via door",
       { fontSize: MainScene.SIZE_INSTRUCTION_FONT, color: MainScene.COLOR_TEXT_SECONDARY }
-    ).setOrigin(0.5, 0);
+    ).setOrigin(0.5, 0).setDepth(MainScene.UI_Z_DEPTH);
 
     // Create player as a triangle (arrow pointing up initially)
     const playerX = width / 2;
@@ -171,11 +172,11 @@ export class MainScene extends Phaser.Scene {
     this.scoreText = this.add.text(MainScene.POS_UI_X, MainScene.POS_UI_SCORE_Y, "Score: 0", {
       fontSize: MainScene.SIZE_SCORE_FONT,
       color: MainScene.COLOR_TEXT_SCORE
-    });
+    }).setDepth(MainScene.UI_Z_DEPTH);
     this.roomText = this.add.text(MainScene.POS_UI_X, MainScene.POS_UI_ROOM_Y, "Room: 1", {
       fontSize: MainScene.SIZE_ROOM_FONT,
       color: MainScene.COLOR_TEXT_SECONDARY
-    });
+    }).setDepth(MainScene.UI_Z_DEPTH);
 
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.arrows, this.walls, (arrow) => {
@@ -429,6 +430,14 @@ export class MainScene extends Phaser.Scene {
     const playerBody = this.getPlayerBody();
     playerBody.setVelocity(0, 0);
     this.player.setPosition(playerX, playerY);
+
+    // Ensure UI text stays on top after building new room (if it exists)
+    if (this.scoreText) {
+      this.scoreText.setDepth(MainScene.UI_Z_DEPTH);
+    }
+    if (this.roomText) {
+      this.roomText.setDepth(MainScene.UI_Z_DEPTH);
+    }
   }
 
   private placeTreasure() {
