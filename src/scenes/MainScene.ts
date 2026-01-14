@@ -232,7 +232,11 @@ export class MainScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.treasure, () => {
       this.score += 50;
       this.scoreText.setText(`Score: ${this.score}`);
-      this.placeTreasure();
+      // Destroy treasure when collected (new treasure spawns only at start of new room)
+      if (this.treasure) {
+        this.treasure.destroy();
+        this.treasure = null as any;
+      }
     });
   }
 
