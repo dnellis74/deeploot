@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { MainScene } from "./scenes/MainScene";
 
+const joystickPlugin = (window as any).RexPlugins?.plugins?.virtualjoystickplugin;
+
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: "app",
@@ -21,15 +23,15 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
-  plugins: {
+  plugins: joystickPlugin ? {
     global: [
       {
         key: 'rexVirtualJoystick',
-        plugin: window.RexPlugins?.plugins?.virtualjoystickplugin,
+        plugin: joystickPlugin,
         start: true
       }
     ]
-  },
+  } : undefined,
   scene: [MainScene]
 };
 

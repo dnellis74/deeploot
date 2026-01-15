@@ -286,8 +286,8 @@ export class MainScene extends Phaser.Scene {
         velocityX = forceX * speed;
         velocityY = forceY * speed;
       }
-    } else {
-      // Use keyboard input
+    } else if (this.cursors) {
+      // Use keyboard input (only if cursors exist)
       if (this.cursors.left?.isDown) {
         velocityX = -speed;
       } else if (this.cursors.right?.isDown) {
