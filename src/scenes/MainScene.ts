@@ -5,6 +5,7 @@ import boomSoundUrl from "../assets/sounds/Boom2.wav";
 import pickupSoundUrl from "../assets/sounds/Pickup1.wav";
 import powerUpSoundUrl from "../assets/sounds/PowerUp2.wav";
 import backgroundMusicUrl from "../assets/sounds/caverns.ogg";
+import { MobileControls } from "./MobileControls";
 
 export class MainScene extends Phaser.Scene {
   // ============================================================================
@@ -69,12 +70,12 @@ export class MainScene extends Phaser.Scene {
   // ============================================================================
   private static readonly CONFIG_ENEMY_COUNT = 3;
   private static readonly CONFIG_ENEMY_DIRECTION_CHANGE_DELAY = 2000;
-  private static readonly CONFIG_FIRE_RATE_DELAY = 200;
+  public static readonly CONFIG_FIRE_RATE_DELAY = 200;
   private static readonly CONFIG_WALL_HEIGHT_RATIO = 0.5;
   private static readonly CONFIG_SCORE_TREASURE = 50;
   private static readonly CONFIG_SCORE_ENEMY = 25;
   private static readonly CONFIG_ANGLE_OFFSET = -90;
-  private static readonly UI_Z_DEPTH = 1000;
+  public static readonly UI_Z_DEPTH = 1000;
 
   // ============================================================================
   // Constants - Player Triangle Points
@@ -99,10 +100,10 @@ export class MainScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Triangle;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private fireKey!: Phaser.Input.Keyboard.Key;
-  private joystick!: any; // Rex Virtual Joystick
+  joystick!: any; // Rex Virtual Joystick (public for MobileControls access)
   private isMobile: boolean = false;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
-  private arrows!: Phaser.Physics.Arcade.Group;
+  arrows!: Phaser.Physics.Arcade.Group; // Public for MobileControls access
   private door!: Phaser.GameObjects.Rectangle;
   private treasure!: Phaser.GameObjects.Arc;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -110,15 +111,29 @@ export class MainScene extends Phaser.Scene {
   private roomText!: Phaser.GameObjects.Text;
   private score = 0;
   private roomIndex = 1;
-  private isGameOver = false;
+  isGameOver = false; // Public for MobileControls access
   private lastDirection = 0; // 0-7 representing 8 directions
-  private nextFire = 0; // Fire rate limiting
+  nextFire = 0; // Fire rate limiting (public for MobileControls access)
 
   constructor() {
     super("main");
   }
 
   create() {
+    // Check if device is mobile (has touch support)
+    this.isMobile = this.sys.game.device.input.touch;
+
+    // Set up input controls
+    if (this.isMobile) {
+      // Create virtual joystick for mobile
+      const mobileControls = new MobileControls(this);
+      mobileControls.loadAndSetup();
+    } else {
+      // Keyboard controls for desktop
+      this.cursors = this.input.keyboard!.createCursorKeys();
+      this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    }
+
     const { width, height } = this.scale;
 
     this.add.text(width / 2, MainScene.POS_TITLE_Y, "Venture Arcade", {
@@ -154,75 +169,7 @@ export class MainScene extends Phaser.Scene {
     this.lastDirection = 0; // Start facing up
     this.updatePlayerVisual();
 
-    // Check if device is mobile (has touch support)
-    this.isMobile = this.sys.game.device.input.touch;
-
-    // Set up input controls
-    if (this.isMobile) {
-      // Create virtual joystick for mobile
-      try {
-        // Try to get plugin from Phaser's plugin system first
-        let joystickPlugin = this.plugins.get('rexVirtualJoystick') as any;
-        console.log('Joystick plugin from Phaser:', joystickPlugin);
-        console.log('Window RexPlugins:', (window as any).RexPlugins);
-        
-        // If not found in Phaser, try accessing directly from window
-        if (!joystickPlugin && (window as any).RexPlugins?.plugins?.virtualjoystickplugin) {
-          joystickPlugin = (window as any).RexPlugins.plugins.virtualjoystickplugin;
-          console.log('Got plugin directly from window:', joystickPlugin);
-        }
-        
-        if (joystickPlugin && typeof joystickPlugin.add === 'function') {
-          // Create base and thumb game objects first
-          const base = this.add.circle(100, height - 100, 50, 0x888888, 0.3);
-          const thumb = this.add.circle(100, height - 100, 30, 0xcccccc, 0.5);
-          base.setDepth(MainScene.UI_Z_DEPTH);
-          thumb.setDepth(MainScene.UI_Z_DEPTH);
-          
-          // Create the joystick using the plugin
-          this.joystick = joystickPlugin.add(this, {
-            x: 100,
-            y: height - 100,
-            radius: 50,
-            base: base,
-            thumb: thumb,
-            dir: '8dir', // 8 directions
-            forceMin: 16
-          });
-          
-          console.log('Joystick created:', this.joystick);
-          
-          if (this.joystick) {
-            // Make sure the joystick components are visible
-            this.joystick.base && this.joystick.base.setDepth(MainScene.UI_Z_DEPTH);
-            this.joystick.thumb && this.joystick.thumb.setDepth(MainScene.UI_Z_DEPTH);
-          }
-        } else {
-          console.warn('Rex Virtual Joystick plugin not available or add method missing');
-          // Fallback: create simple visual indicator
-          const fallbackJoystick = this.add.circle(100, height - 100, 50, 0x888888, 0.3);
-          fallbackJoystick.setDepth(MainScene.UI_Z_DEPTH);
-        }
-      } catch (error) {
-        console.error('Error creating joystick:', error);
-      }
-      // Create a fire button for mobile
-      const fireButton = this.add.circle(width - 100, height - 100, 40, 0xff4444, 0.7);
-      fireButton.setInteractive({ useHandCursor: true });
-      fireButton.setDepth(MainScene.UI_Z_DEPTH);
-      fireButton.on('pointerdown', () => {
-        if (!this.isGameOver && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
-          this.shootArrow();
-          this.nextFire = this.time.now + MainScene.CONFIG_FIRE_RATE_DELAY;
-        }
-      });
-      fireButton.on('pointerover', () => fireButton.setAlpha(0.9));
-      fireButton.on('pointerout', () => fireButton.setAlpha(0.7));
-    } else {
-      // Keyboard controls for desktop
-      this.cursors = this.input.keyboard!.createCursorKeys();
-      this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    }
+    
     this.walls = this.physics.add.staticGroup();
     this.enemies = this.physics.add.group();
     this.arrows = this.arrows = this.physics.add.group({
@@ -357,6 +304,7 @@ export class MainScene extends Phaser.Scene {
     this.cleanupArrows();
   }
 
+
   // ============================================================================
   // Update Methods - Player Movement & Actions
   // ============================================================================
@@ -391,7 +339,7 @@ export class MainScene extends Phaser.Scene {
     this.player.setRotation(Phaser.Math.DegToRad(MainScene.DIRECTION_ANGLES[this.lastDirection]));
   }
 
-  private shootArrow() {
+  shootArrow() { // Public for MobileControls access
     const arrowSpeed = MainScene.SPEED_ARROW;
     const angle = MainScene.DIRECTION_ANGLES[this.lastDirection];
     const angleRadians = Phaser.Math.DegToRad(angle + MainScene.CONFIG_ANGLE_OFFSET);
