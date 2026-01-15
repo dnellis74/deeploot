@@ -15,3 +15,14 @@ declare module '*.ogg' {
   const src: string;
   export default src;
 }
+
+// Rex Plugin declarations
+declare global {
+  interface Window {
+    RexPlugins?: {
+      plugins?: {
+        virtualjoystickplugin?: any;
+      };
+    };
+  }
+}

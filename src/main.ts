@@ -21,6 +21,15 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
+  plugins: {
+    global: [
+      {
+        key: 'rexVirtualJoystick',
+        plugin: window.RexPlugins?.plugins?.virtualjoystickplugin,
+        start: true
+      }
+    ]
+  },
   scene: [MainScene]
 };
 

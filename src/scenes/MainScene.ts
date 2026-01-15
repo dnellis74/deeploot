@@ -99,6 +99,8 @@ export class MainScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Triangle;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private fireKey!: Phaser.Input.Keyboard.Key;
+  private joystick!: any; // Rex Virtual Joystick
+  private isMobile: boolean = false;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private arrows!: Phaser.Physics.Arcade.Group;
   private door!: Phaser.GameObjects.Rectangle;
@@ -152,8 +154,41 @@ export class MainScene extends Phaser.Scene {
     this.lastDirection = 0; // Start facing up
     this.updatePlayerVisual();
 
-    this.cursors = this.input.keyboard!.createCursorKeys();
-    this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    // Check if device is mobile (has touch support)
+    this.isMobile = this.sys.game.device.input.touch;
+
+    // Set up input controls
+    if (this.isMobile) {
+      // Create virtual joystick for mobile
+      const joystickPlugin = this.plugins.get('rexVirtualJoystick') as any;
+      if (joystickPlugin && joystickPlugin.add) {
+        this.joystick = joystickPlugin.add(this, {
+          x: 100,
+          y: height - 100,
+          radius: 50,
+          base: this.add.circle(0, 0, 50, 0x888888, 0.3),
+          thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5),
+          dir: '8dir', // 8 directions
+          forceMin: 16
+        }).setDepth(MainScene.UI_Z_DEPTH);
+      }
+      // Create a fire button for mobile
+      const fireButton = this.add.circle(width - 100, height - 100, 40, 0xff4444, 0.7);
+      fireButton.setInteractive({ useHandCursor: true });
+      fireButton.setDepth(MainScene.UI_Z_DEPTH);
+      fireButton.on('pointerdown', () => {
+        if (!this.isGameOver && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
+          this.shootArrow();
+          this.nextFire = this.time.now + MainScene.CONFIG_FIRE_RATE_DELAY;
+        }
+      });
+      fireButton.on('pointerover', () => fireButton.setAlpha(0.9));
+      fireButton.on('pointerout', () => fireButton.setAlpha(0.7));
+    } else {
+      // Keyboard controls for desktop
+      this.cursors = this.input.keyboard!.createCursorKeys();
+      this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    }
     this.walls = this.physics.add.staticGroup();
     this.enemies = this.physics.add.group();
     this.arrows = this.arrows = this.physics.add.group({
@@ -242,16 +277,28 @@ export class MainScene extends Phaser.Scene {
     let velocityX = 0;
     let velocityY = 0;
 
-    if (this.cursors.left?.isDown) {
-      velocityX = -speed;
-    } else if (this.cursors.right?.isDown) {
-      velocityX = speed;
-    }
+    // Get input from joystick (mobile) or keyboard (desktop)
+    if (this.isMobile && this.joystick) {
+      // Use joystick input
+      const forceX = this.joystick.forceX;
+      const forceY = this.joystick.forceY;
+      if (this.joystick.isPointerDown) {
+        velocityX = forceX * speed;
+        velocityY = forceY * speed;
+      }
+    } else {
+      // Use keyboard input
+      if (this.cursors.left?.isDown) {
+        velocityX = -speed;
+      } else if (this.cursors.right?.isDown) {
+        velocityX = speed;
+      }
 
-    if (this.cursors.up?.isDown) {
-      velocityY = -speed;
-    } else if (this.cursors.down?.isDown) {
-      velocityY = speed;
+      if (this.cursors.up?.isDown) {
+        velocityY = -speed;
+      } else if (this.cursors.down?.isDown) {
+        velocityY = speed;
+      }
     }
 
     if (velocityX !== 0 && velocityY !== 0) {
@@ -264,8 +311,8 @@ export class MainScene extends Phaser.Scene {
       this.updatePlayerDirection(velocityX, velocityY);
     }
 
-    // Handle firing (only if no arrows exist)
-    if (this.fireKey.isDown && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
+    // Handle firing (only if no arrows exist) - keyboard only (mobile uses button)
+    if (!this.isMobile && this.fireKey?.isDown && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
       this.shootArrow();
       this.nextFire = this.time.now + MainScene.CONFIG_FIRE_RATE_DELAY;
     }
