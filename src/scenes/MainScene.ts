@@ -160,17 +160,51 @@ export class MainScene extends Phaser.Scene {
     // Set up input controls
     if (this.isMobile) {
       // Create virtual joystick for mobile
-      const joystickPlugin = this.plugins.get('rexVirtualJoystick') as any;
-      if (joystickPlugin && joystickPlugin.add) {
-        this.joystick = joystickPlugin.add(this, {
-          x: 100,
-          y: height - 100,
-          radius: 50,
-          base: this.add.circle(0, 0, 50, 0x888888, 0.3),
-          thumb: this.add.circle(0, 0, 30, 0xcccccc, 0.5),
-          dir: '8dir', // 8 directions
-          forceMin: 16
-        }).setDepth(MainScene.UI_Z_DEPTH);
+      try {
+        // Try to get plugin from Phaser's plugin system first
+        let joystickPlugin = this.plugins.get('rexVirtualJoystick') as any;
+        console.log('Joystick plugin from Phaser:', joystickPlugin);
+        console.log('Window RexPlugins:', (window as any).RexPlugins);
+        
+        // If not found in Phaser, try accessing directly from window
+        if (!joystickPlugin && (window as any).RexPlugins?.plugins?.virtualjoystickplugin) {
+          joystickPlugin = (window as any).RexPlugins.plugins.virtualjoystickplugin;
+          console.log('Got plugin directly from window:', joystickPlugin);
+        }
+        
+        if (joystickPlugin && typeof joystickPlugin.add === 'function') {
+          // Create base and thumb game objects first
+          const base = this.add.circle(100, height - 100, 50, 0x888888, 0.3);
+          const thumb = this.add.circle(100, height - 100, 30, 0xcccccc, 0.5);
+          base.setDepth(MainScene.UI_Z_DEPTH);
+          thumb.setDepth(MainScene.UI_Z_DEPTH);
+          
+          // Create the joystick using the plugin
+          this.joystick = joystickPlugin.add(this, {
+            x: 100,
+            y: height - 100,
+            radius: 50,
+            base: base,
+            thumb: thumb,
+            dir: '8dir', // 8 directions
+            forceMin: 16
+          });
+          
+          console.log('Joystick created:', this.joystick);
+          
+          if (this.joystick) {
+            // Make sure the joystick components are visible
+            this.joystick.base && this.joystick.base.setDepth(MainScene.UI_Z_DEPTH);
+            this.joystick.thumb && this.joystick.thumb.setDepth(MainScene.UI_Z_DEPTH);
+          }
+        } else {
+          console.warn('Rex Virtual Joystick plugin not available or add method missing');
+          // Fallback: create simple visual indicator
+          const fallbackJoystick = this.add.circle(100, height - 100, 50, 0x888888, 0.3);
+          fallbackJoystick.setDepth(MainScene.UI_Z_DEPTH);
+        }
+      } catch (error) {
+        console.error('Error creating joystick:', error);
       }
       // Create a fire button for mobile
       const fireButton = this.add.circle(width - 100, height - 100, 40, 0xff4444, 0.7);
