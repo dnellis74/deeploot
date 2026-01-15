@@ -102,6 +102,7 @@ export class MainScene extends Phaser.Scene {
   private fireKey!: Phaser.Input.Keyboard.Key;
   joystick!: any; // Rex Virtual Joystick (public for MobileControls access)
   private isMobile: boolean = false;
+  joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Public for MobileControls access
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   arrows!: Phaser.Physics.Arcade.Group; // Public for MobileControls access
   private door!: Phaser.GameObjects.Rectangle;
@@ -259,25 +260,19 @@ export class MainScene extends Phaser.Scene {
     let velocityY = 0;
 
     // Get input from joystick (mobile) or keyboard (desktop)
-    if (this.isMobile && this.joystick) {
-      // Use joystick input
-      const forceX = this.joystick.forceX;
-      const forceY = this.joystick.forceY;
-      if (this.joystick.isPointerDown) {
-        velocityX = forceX * speed;
-        velocityY = forceY * speed;
-      }
-    } else if (this.cursors) {
-      // Use keyboard input (only if cursors exist)
-      if (this.cursors.left?.isDown) {
+    // Use joystick cursors if available, otherwise use keyboard cursors
+    const activeCursors = this.joystickCursors || this.cursors;
+    
+    if (activeCursors) {
+      if (activeCursors.left?.isDown) {
         velocityX = -speed;
-      } else if (this.cursors.right?.isDown) {
+      } else if (activeCursors.right?.isDown) {
         velocityX = speed;
       }
 
-      if (this.cursors.up?.isDown) {
+      if (activeCursors.up?.isDown) {
         velocityY = -speed;
-      } else if (this.cursors.down?.isDown) {
+      } else if (activeCursors.down?.isDown) {
         velocityY = speed;
       }
     }

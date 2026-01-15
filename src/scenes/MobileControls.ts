@@ -40,23 +40,26 @@ export class MobileControls {
     const joystickPlugin = this.scene.plugins.get('rexvirtualjoystickplugin') as any;
 
     if (joystickPlugin) {
+      const joystickX = 100;
+      const joystickY = height - 100;
+      
+      // Create base and thumb at the joystick position
+      const base = this.scene.add.circle(joystickX, joystickY, 60, 0x888888, 0.5);
+      const thumb = this.scene.add.circle(joystickX, joystickY, 30, 0xcccccc, 0.8);
+      base.setDepth(MainScene.UI_Z_DEPTH);
+      thumb.setDepth(MainScene.UI_Z_DEPTH + 1);
+      
       this.scene.joystick = joystickPlugin.add(this.scene, {
-        x: 100,
-        y: height - 100,
+        x: joystickX,
+        y: joystickY,
         radius: 60,
-        // Create the shapes directly inside the config
-        base: this.scene.add.circle(0, 0, 60, 0x888888, 0.5).setDepth(MainScene.UI_Z_DEPTH),
-        thumb: this.scene.add.circle(0, 0, 30, 0xcccccc, 0.8).setDepth(MainScene.UI_Z_DEPTH + 1),
-        dir: '8dir',
-        forceMin: 10 // Lower this so slight movements are registered
+        base: base,
+        thumb: thumb,
+        dir: '8dir'
       });
 
-      // Test if it's working
-      this.scene.joystick.on('update', () => {
-        if (this.scene.joystick.force > 0) {
-          console.log("Joystick Angle:", this.scene.joystick.angle);
-        }
-      });
+      // Create cursor keys from joystick - this allows joystick to work exactly like keyboard
+      this.scene.joystickCursors = this.scene.joystick.createCursorKeys();
     }
   }
 }
