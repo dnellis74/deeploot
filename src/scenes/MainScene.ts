@@ -4,6 +4,7 @@ import hitSoundUrl from "../assets/sounds/Hit2.wav";
 import boomSoundUrl from "../assets/sounds/Boom2.wav";
 import pickupSoundUrl from "../assets/sounds/Pickup1.wav";
 import powerUpSoundUrl from "../assets/sounds/PowerUp2.wav";
+import backgroundMusicUrl from "../assets/sounds/caverns.ogg";
 
 export class MainScene extends Phaser.Scene {
   // ============================================================================
@@ -208,7 +209,13 @@ export class MainScene extends Phaser.Scene {
     this.load.audio('boom', boomSoundUrl);
     this.load.audio('pickup', pickupSoundUrl);
     this.load.audio('powerUp', powerUpSoundUrl);
+    this.load.audio('backgroundMusic', backgroundMusicUrl);
     this.load.start();
+    
+    // Play background music when loaded
+    this.load.once('complete', () => {
+      this.sound.play('backgroundMusic', { loop: true, volume: 0.5 });
+    });
 
     this.physics.add.overlap(this.player, this.door, () => {
       if (this.isGameOver) {
