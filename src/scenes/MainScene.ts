@@ -7,100 +7,17 @@ import powerUpSoundUrl from "../assets/sounds/PowerUp2.wav";
 import backgroundMusicUrl from "../assets/sounds/caverns.ogg";
 import { MobileControls } from "./MobileControls";
 import { DebugFlags } from "../config/debug";
+import {
+  Colors,
+  Sizes,
+  Speeds,
+  Positions,
+  GameConfig,
+  PlayerTrianglePoints,
+  DirectionAngles,
+} from "../config/gameConfig";
 
 export class MainScene extends Phaser.Scene {
-  // ============================================================================
-  // Constants - Colors
-  // ============================================================================
-  private static readonly COLOR_PLAYER = 0x38bdf8;
-  private static readonly COLOR_DOOR = 0x8B4513;
-  private static readonly COLOR_ENEMY = 0x22c55e;
-  private static readonly COLOR_ENEMY_HIT = 0xef4444;
-  private static readonly COLOR_TREASURE = 0xfacc15;
-  private static readonly COLOR_ARROW = 0xfacc15;
-  private static readonly COLOR_WALL = 0x1f2937;
-  private static readonly COLOR_GAME_OVER = 0xf97316;
-  private static readonly COLOR_TEXT_PRIMARY = "#e6edf3";
-  private static readonly COLOR_TEXT_SECONDARY = "#94a3b8";
-  private static readonly COLOR_TEXT_SCORE = "#e2e8f0";
-  private static readonly COLOR_TEXT_GAME_OVER = "#fca5a5";
-
-  // ============================================================================
-  // Constants - Sizes
-  // ============================================================================
-  private static readonly SIZE_ENEMY_RADIUS = 14;
-  private static readonly SIZE_TREASURE_RADIUS = 12;
-  private static readonly SIZE_ARROW_WIDTH = 6;
-  private static readonly SIZE_ARROW_HEIGHT = 12;
-  private static readonly SIZE_PLAYER_WIDTH = 12;
-  private static readonly SIZE_PLAYER_HEIGHT = 16;
-  private static readonly SIZE_WALL_THICKNESS = 24;
-  private static readonly SIZE_DOOR_WIDTH = 90;
-  private static readonly SIZE_TITLE_FONT = "20px";
-  private static readonly SIZE_INSTRUCTION_FONT = "14px";
-  private static readonly SIZE_SCORE_FONT = "16px";
-  private static readonly SIZE_ROOM_FONT = "14px";
-  private static readonly SIZE_GAME_OVER_FONT = "36px";
-
-  // ============================================================================
-  // Constants - Speeds
-  // ============================================================================
-  private static readonly SPEED_PLAYER = 200;
-  private static readonly SPEED_ARROW = 400;
-  private static readonly SPEED_ENEMY = 140;
-  private static readonly SPEED_DIAGONAL_MULTIPLIER = 0.7071;
-
-  // ============================================================================
-  // Constants - Positions & Offsets
-  // ============================================================================
-  // Top safe area offset for iPhone 16: ~59 points (Dynamic Island + status bar)
-  private static readonly SAFE_AREA_TOP = 59;
-  // Controls area offset: space needed for joystick (60px radius) + fire button (40px radius) + buffer
-  // Controls are at height - 100 - 34 (safe area), so we need gameplay area to end above this
-  private static readonly CONTROLS_AREA_HEIGHT = 200;
-  // Room top offset: position of top wall below the instruction text
-  private static readonly ROOM_TOP_OFFSET = 140; // Below instructions (107 + ~33 for spacing)
-  private static readonly POS_TITLE_Y = 83; // 24 + 59 (safe area)
-  private static readonly POS_INSTRUCTION_Y = 107; // 48 + 59 (safe area)
-  private static readonly POS_PLAYER_OFFSET_Y = 80;
-  private static readonly POS_UI_X = 16;
-  private static readonly POS_UI_SCORE_Y = 75; // 16 + 59 (safe area)
-  private static readonly POS_UI_ROOM_Y = 95; // 36 + 59 (safe area)
-  private static readonly POS_PADDING = 80;
-  private static readonly POS_PADDING_TREASURE_Y_OFFSET = 40;
-  private static readonly POS_SPAWN_MIN_X = 100;
-  private static readonly POS_SPAWN_MIN_Y = 120;
-  private static readonly POS_SPAWN_MAX_Y_OFFSET = 160;
-  private static readonly POS_CLEANUP_OFFSET = 50;
-
-  // ============================================================================
-  // Constants - Game Configuration
-  // ============================================================================
-  private static readonly CONFIG_ENEMY_COUNT = 3;
-  private static readonly CONFIG_ENEMY_DIRECTION_CHANGE_DELAY = 2000;
-  public static readonly CONFIG_FIRE_RATE_DELAY = 200;
-  private static readonly CONFIG_WALL_HEIGHT_RATIO = 0.5;
-  private static readonly CONFIG_SCORE_TREASURE = 50;
-  private static readonly CONFIG_SCORE_ENEMY = 25;
-  private static readonly CONFIG_ANGLE_OFFSET = -90;
-  public static readonly UI_Z_DEPTH = 1000;
-
-  // ============================================================================
-  // Constants - Player Triangle Points
-  // ============================================================================
-  private static readonly PLAYER_TRIANGLE_POINTS = {
-    x1: 0,
-    y1: -8,
-    x2: -6,
-    y2: 8,
-    x3: 6,
-    y3: 8
-  };
-
-  // ============================================================================
-  // Constants - Direction Angles
-  // ============================================================================
-  private static readonly DIRECTION_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 
   // ============================================================================
   // Instance Properties
@@ -145,38 +62,38 @@ export class MainScene extends Phaser.Scene {
 
     const { width, height } = this.scale;
 
-    this.add.text(width / 2, MainScene.POS_TITLE_Y, "Venture Arcade", {
-      fontSize: MainScene.SIZE_TITLE_FONT,
-      color: MainScene.COLOR_TEXT_PRIMARY
-    }).setOrigin(0.5, 0).setDepth(MainScene.UI_Z_DEPTH);
+    this.add.text(width / 2, Positions.TITLE_Y, "Venture Arcade", {
+      fontSize: Sizes.TITLE_FONT,
+      color: Colors.TEXT_PRIMARY
+    }).setOrigin(0.5, 0).setDepth(GameConfig.UI_Z_DEPTH);
 
     this.add.text(
       width / 2,
-      MainScene.POS_INSTRUCTION_Y,
+      Positions.INSTRUCTION_Y,
       "Move: \u2190 \u2192 \u2191 \u2193  |  Fire: Space  |  Grab treasure  |  Exit via door",
-      { fontSize: MainScene.SIZE_INSTRUCTION_FONT, color: MainScene.COLOR_TEXT_SECONDARY }
-    ).setOrigin(0.5, 0).setDepth(MainScene.UI_Z_DEPTH);
+      { fontSize: Sizes.INSTRUCTION_FONT, color: Colors.TEXT_SECONDARY }
+    ).setOrigin(0.5, 0).setDepth(GameConfig.UI_Z_DEPTH);
 
     // Create player as a triangle (arrow pointing up initially)
     const playerX = width / 2;
     // Player spawn: bottom of room minus offset
-    const topWallY = MainScene.ROOM_TOP_OFFSET + MainScene.SIZE_WALL_THICKNESS / 2;
+    const topWallY = Positions.ROOM_TOP_OFFSET + Sizes.WALL_THICKNESS / 2;
     const bottomWallY = topWallY + width; // Square room
-    const playerY = bottomWallY - MainScene.POS_PLAYER_OFFSET_Y;
+    const playerY = bottomWallY - Positions.PLAYER_OFFSET_Y;
     this.player = this.add.triangle(
       playerX,
       playerY,
-      MainScene.PLAYER_TRIANGLE_POINTS.x1,
-      MainScene.PLAYER_TRIANGLE_POINTS.y1,
-      MainScene.PLAYER_TRIANGLE_POINTS.x2,
-      MainScene.PLAYER_TRIANGLE_POINTS.y2,
-      MainScene.PLAYER_TRIANGLE_POINTS.x3,
-      MainScene.PLAYER_TRIANGLE_POINTS.y3,
-      MainScene.COLOR_PLAYER
+      PlayerTrianglePoints.x1,
+      PlayerTrianglePoints.y1,
+      PlayerTrianglePoints.x2,
+      PlayerTrianglePoints.y2,
+      PlayerTrianglePoints.x3,
+      PlayerTrianglePoints.y3,
+      Colors.PLAYER
     );
     this.physics.add.existing(this.player);
     const playerPhysicsBody = this.getPlayerBody();
-    playerPhysicsBody.setSize(MainScene.SIZE_PLAYER_WIDTH, MainScene.SIZE_PLAYER_HEIGHT);
+    playerPhysicsBody.setSize(Sizes.PLAYER_WIDTH, Sizes.PLAYER_HEIGHT);
     playerPhysicsBody.setCollideWorldBounds(true);
     this.lastDirection = 0; // Start facing up
     this.updatePlayerVisual();
@@ -188,32 +105,32 @@ export class MainScene extends Phaser.Scene {
       classType: Phaser.GameObjects.Rectangle, // Tells the group to create Rectangles
       createCallback: (obj) => {
           const rect = obj as Phaser.GameObjects.Rectangle;
-          rect.setSize(MainScene.SIZE_ARROW_WIDTH, MainScene.SIZE_ARROW_HEIGHT);
-          rect.setFillStyle(MainScene.COLOR_ARROW);
+          rect.setSize(Sizes.ARROW_WIDTH, Sizes.ARROW_HEIGHT);
+          rect.setFillStyle(Colors.ARROW);
       }
   });
 
     // Create door once - it stays stationary on the wall
-    const wallThickness = MainScene.SIZE_WALL_THICKNESS;
-    const doorWidth = MainScene.SIZE_DOOR_WIDTH;
+    const wallThickness = Sizes.WALL_THICKNESS;
+    const doorWidth = Sizes.DOOR_WIDTH;
     const doorX = width / 2;
     // Door position will be set in buildRoom, use temporary position here
-    const doorTopWallY = MainScene.ROOM_TOP_OFFSET + wallThickness / 2;
+    const doorTopWallY = Positions.ROOM_TOP_OFFSET + wallThickness / 2;
     const roomHeight = width; // Square room
     const doorY = doorTopWallY + roomHeight;
-    this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, MainScene.COLOR_DOOR);
+    this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, Colors.DOOR);
     this.physics.add.existing(this.door, true);
 
     this.buildRoom();
 
-    this.scoreText = this.add.text(MainScene.POS_UI_X, MainScene.POS_UI_SCORE_Y, "Score: 0", {
-      fontSize: MainScene.SIZE_SCORE_FONT,
-      color: MainScene.COLOR_TEXT_SCORE
-    }).setDepth(MainScene.UI_Z_DEPTH);
-    this.roomText = this.add.text(MainScene.POS_UI_X, MainScene.POS_UI_ROOM_Y, "Room: 1", {
-      fontSize: MainScene.SIZE_ROOM_FONT,
-      color: MainScene.COLOR_TEXT_SECONDARY
-    }).setDepth(MainScene.UI_Z_DEPTH);
+    this.scoreText = this.add.text(Positions.UI_X, Positions.UI_SCORE_Y, "Score: 0", {
+      fontSize: Sizes.SCORE_FONT,
+      color: Colors.TEXT_SCORE
+    }).setDepth(GameConfig.UI_Z_DEPTH);
+    this.roomText = this.add.text(Positions.UI_X, Positions.UI_ROOM_Y, "Room: 1", {
+      fontSize: Sizes.ROOM_FONT,
+      color: Colors.TEXT_SECONDARY
+    }).setDepth(GameConfig.UI_Z_DEPTH);
 
     this.physics.add.collider(this.player, this.walls);
     this.physics.add.collider(this.arrows, this.walls, (arrow) => {
@@ -225,7 +142,7 @@ export class MainScene extends Phaser.Scene {
 
     // Set up periodic enemy direction changes
     this.time.addEvent({
-      delay: MainScene.CONFIG_ENEMY_DIRECTION_CHANGE_DELAY,
+      delay: GameConfig.ENEMY_DIRECTION_CHANGE_DELAY,
       callback: this.changeEnemyDirections,
       callbackScope: this,
       loop: true
@@ -273,7 +190,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     const playerBody = this.getPlayerBody();
-    const speed = MainScene.SPEED_PLAYER;
+    const speed = Speeds.PLAYER;
     let velocityX = 0;
     let velocityY = 0;
 
@@ -296,8 +213,8 @@ export class MainScene extends Phaser.Scene {
     }
 
     if (velocityX !== 0 && velocityY !== 0) {
-      velocityX *= MainScene.SPEED_DIAGONAL_MULTIPLIER;
-      velocityY *= MainScene.SPEED_DIAGONAL_MULTIPLIER;
+      velocityX *= Speeds.DIAGONAL_MULTIPLIER;
+      velocityY *= Speeds.DIAGONAL_MULTIPLIER;
     }
 
     // Update direction based on movement
@@ -308,7 +225,7 @@ export class MainScene extends Phaser.Scene {
     // Handle firing (only if no arrows exist) - keyboard only (mobile uses button)
     if (!this.isMobile && this.fireKey?.isDown && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
       this.shootArrow();
-      this.nextFire = this.time.now + MainScene.CONFIG_FIRE_RATE_DELAY;
+      this.nextFire = this.time.now + GameConfig.FIRE_RATE_DELAY;
     }
 
     playerBody.setVelocity(velocityX, velocityY);
@@ -349,13 +266,13 @@ export class MainScene extends Phaser.Scene {
   private updatePlayerVisual() {
     // Rotate player triangle to point in the direction of movement
     // Directions: 0=Up, 1=Up-Right, 2=Right, 3=Down-Right, 4=Down, 5=Down-Left, 6=Left, 7=Up-Left
-    this.player.setRotation(Phaser.Math.DegToRad(MainScene.DIRECTION_ANGLES[this.lastDirection]));
+    this.player.setRotation(Phaser.Math.DegToRad(DirectionAngles[this.lastDirection]));
   }
 
   shootArrow() { // Public for MobileControls access
-    const arrowSpeed = MainScene.SPEED_ARROW;
-    const angle = MainScene.DIRECTION_ANGLES[this.lastDirection];
-    const angleRadians = Phaser.Math.DegToRad(angle + MainScene.CONFIG_ANGLE_OFFSET);
+    const arrowSpeed = Speeds.ARROW;
+    const angle = DirectionAngles[this.lastDirection];
+    const angleRadians = Phaser.Math.DegToRad(angle + GameConfig.ANGLE_OFFSET);
 
     // 1. Get/Create from the Physics Group directly
     // This handles adding to the group and physics setup in one go
@@ -387,7 +304,7 @@ export class MainScene extends Phaser.Scene {
   private cleanupArrows() {
     const { width, height } = this.scale;
     const arrowsToDestroy: Phaser.GameObjects.Rectangle[] = [];
-    const cleanupOffset = MainScene.POS_CLEANUP_OFFSET;
+    const cleanupOffset = Positions.CLEANUP_OFFSET;
     
     this.forEachArrow((arrow) => {
       if (
@@ -420,10 +337,10 @@ export class MainScene extends Phaser.Scene {
       
       // Turn enemy red, stop moving, but don't destroy
       const enemyCircle = enemy as Phaser.GameObjects.Arc;
-      enemyCircle.setFillStyle(MainScene.COLOR_ENEMY_HIT);
+      enemyCircle.setFillStyle(Colors.ENEMY_HIT);
       const enemyBody = this.getEnemyBody(enemyCircle);
       enemyBody.setVelocity(0, 0); // Stop movement
-      this.addScore(MainScene.CONFIG_SCORE_ENEMY);
+      this.addScore(GameConfig.SCORE_ENEMY);
       
       // Play hit sound
       this.sound.play('hit');
@@ -436,10 +353,10 @@ export class MainScene extends Phaser.Scene {
       }
       this.isGameOver = true;
       this.physics.pause();
-      this.player.setFillStyle(MainScene.COLOR_GAME_OVER);
+      this.player.setFillStyle(Colors.GAME_OVER);
       this.add.text(width / 2, height / 2, "Game Over", {
-        fontSize: MainScene.SIZE_GAME_OVER_FONT,
-        color: MainScene.COLOR_TEXT_GAME_OVER
+        fontSize: Sizes.GAME_OVER_FONT,
+        color: Colors.TEXT_GAME_OVER
       }).setOrigin(0.5);
       
       // Play game over sound
@@ -449,7 +366,7 @@ export class MainScene extends Phaser.Scene {
 
   private setupTreasureCollisions() {
     this.physics.add.overlap(this.player, this.treasure, () => {
-      this.addScore(MainScene.CONFIG_SCORE_TREASURE);
+      this.addScore(GameConfig.SCORE_TREASURE);
       // Destroy treasure when collected (new treasure spawns only at start of new room)
       if (this.treasure) {
         this.treasure.destroy();
@@ -467,8 +384,8 @@ export class MainScene extends Phaser.Scene {
 
   private buildRoom() {
     const { width, height } = this.scale;
-    const wallThickness = MainScene.SIZE_WALL_THICKNESS;
-    const doorWidth = MainScene.SIZE_DOOR_WIDTH;
+    const wallThickness = Sizes.WALL_THICKNESS;
+    const doorWidth = Sizes.DOOR_WIDTH;
 
     this.walls.clear(true, true);
     this.arrows.clear(true, true);
@@ -477,7 +394,7 @@ export class MainScene extends Phaser.Scene {
 
     // Calculate room dimensions to be roughly square
     // Top wall center should be at ROOM_TOP_OFFSET + wallThickness/2
-    const topWallY = MainScene.ROOM_TOP_OFFSET + wallThickness / 2;
+    const topWallY = Positions.ROOM_TOP_OFFSET + wallThickness / 2;
     // Room height = width (for square), so bottom wall center = topWallY + width
     const roomHeight = width; // Make room square (width = 393)
     const bottomWallY = topWallY + roomHeight;
@@ -501,16 +418,16 @@ export class MainScene extends Phaser.Scene {
     // Place a wall between player and treasure
     const playerX = width / 2;
     // Player spawn: bottom of room minus offset (reuse bottomWallY from above)
-    const playerY = bottomWallY - MainScene.POS_PLAYER_OFFSET_Y;
+    const playerY = bottomWallY - Positions.PLAYER_OFFSET_Y;
     const treasureX = this.treasure.x;
     const treasureY = this.treasure.y;
     const wallX = (playerX + treasureX) / 2;
     const wallY = (playerY + treasureY) / 2;
     // Wall height should be based on room height, not screen height, and never exceed 50%
-    const wallHeight = Math.min(roomHeight * MainScene.CONFIG_WALL_HEIGHT_RATIO, roomHeight * 0.5);
+    const wallHeight = Math.min(roomHeight * GameConfig.WALL_HEIGHT_RATIO, roomHeight * 0.5);
     this.createWall(wallX, wallY, wallThickness, wallHeight);
     
-    for (let i = 0; i < MainScene.CONFIG_ENEMY_COUNT; i++) {
+    for (let i = 0; i < GameConfig.ENEMY_COUNT; i++) {
       this.spawnEnemy();
     }
 
@@ -520,10 +437,10 @@ export class MainScene extends Phaser.Scene {
 
     // Ensure UI text stays on top after building new room (if it exists)
     if (this.scoreText) {
-      this.scoreText.setDepth(MainScene.UI_Z_DEPTH);
+      this.scoreText.setDepth(GameConfig.UI_Z_DEPTH);
     }
     if (this.roomText) {
-      this.roomText.setDepth(MainScene.UI_Z_DEPTH);
+      this.roomText.setDepth(GameConfig.UI_Z_DEPTH);
     }
   }
 
@@ -534,14 +451,14 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Create a new treasure at a random position within the room
-    const padding = MainScene.POS_PADDING;
-    const topWallY = MainScene.ROOM_TOP_OFFSET + MainScene.SIZE_WALL_THICKNESS / 2;
-    const roomTop = topWallY + MainScene.SIZE_WALL_THICKNESS / 2 + padding;
-    const roomBottom = topWallY + this.scale.width - MainScene.SIZE_WALL_THICKNESS / 2 - padding;
+    const padding = Positions.PADDING;
+    const topWallY = Positions.ROOM_TOP_OFFSET + Sizes.WALL_THICKNESS / 2;
+    const roomTop = topWallY + Sizes.WALL_THICKNESS / 2 + padding;
+    const roomBottom = topWallY + this.scale.width - Sizes.WALL_THICKNESS / 2 - padding;
     const x = Phaser.Math.Between(padding, this.scale.width - padding);
-    const y = Phaser.Math.Between(roomTop + MainScene.POS_PADDING_TREASURE_Y_OFFSET, roomBottom);
+    const y = Phaser.Math.Between(roomTop + Positions.PADDING_TREASURE_Y_OFFSET, roomBottom);
     
-    this.treasure = this.add.circle(x, y, MainScene.SIZE_TREASURE_RADIUS, MainScene.COLOR_TREASURE);
+    this.treasure = this.add.circle(x, y, Sizes.TREASURE_RADIUS, Colors.TREASURE);
     this.physics.add.existing(this.treasure, true);
     
     // Re-establish collisions with the new treasure
@@ -549,12 +466,12 @@ export class MainScene extends Phaser.Scene {
   }
 
   private spawnEnemy() {
-    const topWallY = MainScene.ROOM_TOP_OFFSET + MainScene.SIZE_WALL_THICKNESS / 2;
-    const roomTop = topWallY + MainScene.SIZE_WALL_THICKNESS / 2;
-    const roomBottom = topWallY + this.scale.width - MainScene.SIZE_WALL_THICKNESS / 2;
-    const x = Phaser.Math.Between(MainScene.POS_SPAWN_MIN_X, this.scale.width - MainScene.POS_SPAWN_MIN_X);
-    const y = Phaser.Math.Between(Math.max(roomTop + MainScene.POS_SPAWN_MIN_Y, MainScene.POS_SPAWN_MIN_Y), roomBottom - MainScene.POS_SPAWN_MAX_Y_OFFSET);
-    const enemy = this.add.circle(x, y, MainScene.SIZE_ENEMY_RADIUS, MainScene.COLOR_ENEMY);
+    const topWallY = Positions.ROOM_TOP_OFFSET + Sizes.WALL_THICKNESS / 2;
+    const roomTop = topWallY + Sizes.WALL_THICKNESS / 2;
+    const roomBottom = topWallY + this.scale.width - Sizes.WALL_THICKNESS / 2;
+    const x = Phaser.Math.Between(Positions.SPAWN_MIN_X, this.scale.width - Positions.SPAWN_MIN_X);
+    const y = Phaser.Math.Between(Math.max(roomTop + Positions.SPAWN_MIN_Y, Positions.SPAWN_MIN_Y), roomBottom - Positions.SPAWN_MAX_Y_OFFSET);
+    const enemy = this.add.circle(x, y, Sizes.ENEMY_RADIUS, Colors.ENEMY);
     this.enemies.add(enemy);
     this.physics.add.existing(enemy);
     const enemyBody = this.getEnemyBody(enemy);
@@ -577,7 +494,7 @@ export class MainScene extends Phaser.Scene {
   // ============================================================================
 
   private createWall(x: number, y: number, width: number, height: number) {
-    const wall = this.add.rectangle(x, y, width, height, MainScene.COLOR_WALL);
+    const wall = this.add.rectangle(x, y, width, height, Colors.WALL);
     this.physics.add.existing(wall, true);
     this.walls.add(wall);
   }
@@ -618,7 +535,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private setRandomEnemyVelocity(enemyBody: Phaser.Physics.Arcade.Body): void {
-    const speed = MainScene.SPEED_ENEMY;
+    const speed = Speeds.ENEMY;
     enemyBody.setVelocity(
       Phaser.Math.Between(-speed, speed),
       Phaser.Math.Between(-speed, speed)

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { MainScene } from "./MainScene";
+import { GameConfig } from "../config/gameConfig";
 
 export class MobileControls {
   constructor(private scene: MainScene) {}
@@ -27,11 +28,11 @@ export class MobileControls {
     // Create a fire button for mobile, accounting for bottom safe area
     const fireButton = this.scene.add.circle(width - 100, height - 100 - bottomSafeArea, 40, 0xff4444, 0.7);
     fireButton.setInteractive({ useHandCursor: true });
-    fireButton.setDepth(MainScene.UI_Z_DEPTH);
+    fireButton.setDepth(GameConfig.UI_Z_DEPTH);
     fireButton.on('pointerdown', () => {
       if (!this.scene.isGameOver && this.scene.time.now > this.scene.nextFire && this.scene.arrows.countActive(true) === 0) {
         this.scene.shootArrow();
-        this.scene.nextFire = this.scene.time.now + MainScene.CONFIG_FIRE_RATE_DELAY;
+        this.scene.nextFire = this.scene.time.now + GameConfig.FIRE_RATE_DELAY;
       }
     });
     fireButton.on('pointerover', () => fireButton.setAlpha(0.9));
@@ -50,8 +51,8 @@ export class MobileControls {
       // Create base and thumb at the joystick position
       const base = this.scene.add.circle(joystickX, joystickY, 60, 0x888888, 0.5);
       const thumb = this.scene.add.circle(joystickX, joystickY, 30, 0xcccccc, 0.8);
-      base.setDepth(MainScene.UI_Z_DEPTH);
-      thumb.setDepth(MainScene.UI_Z_DEPTH + 1);
+      base.setDepth(GameConfig.UI_Z_DEPTH);
+      thumb.setDepth(GameConfig.UI_Z_DEPTH + 1);
       
       this.scene.joystick = joystickPlugin.add(this.scene, {
         x: joystickX,
