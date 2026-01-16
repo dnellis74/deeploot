@@ -25,8 +25,10 @@ function initGame() {
       }
     },
     scale: {
-      mode: Phaser.Scale.RESIZE,
-      autoCenter: Phaser.Scale.CENTER_BOTH
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: 393,
+      height: 759
     },
     plugins: joystickPlugin ? {
       global: [
