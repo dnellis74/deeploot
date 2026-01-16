@@ -28,8 +28,8 @@ export class RoomScene extends Phaser.Scene {
   // Instance Properties
   // ============================================================================
   private player!: Phaser.GameObjects.Triangle;
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  private fireKey!: Phaser.Input.Keyboard.Key;
+  private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  private fireKey?: Phaser.Input.Keyboard.Key;
   joystick!: VirtualJoystickInstance; // Rex Virtual Joystick (public for MobileControls access)
   private isMobile: boolean = false;
   joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Public for MobileControls access
@@ -76,8 +76,12 @@ export class RoomScene extends Phaser.Scene {
       mobileControls.loadAndSetup();
     } else {
       // Keyboard controls for desktop
-      this.cursors = this.input.keyboard!.createCursorKeys();
-      this.fireKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      if (this.input.keyboard) {
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.fireKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+      } else {
+        console.error('Keyboard input not available');
+      }
     }
 
     const { width, height } = this.scale;
@@ -191,14 +195,14 @@ export class RoomScene extends Phaser.Scene {
 
     // Set up periodic check for new enemy spawns (every second)
     this.time.addEvent({
-      delay: 1000, // Check every second
+      delay: GameConfig.ENEMY_SPAWN_CHECK_DELAY,
       callback: this.checkEnemySpawn,
       callbackScope: this,
       loop: true
     });
 
-    // Set up treasure collisions (will be re-established after each spawn)
-    this.setupTreasureCollisions();
+    // Note: Treasure collisions are set up in placeTreasure() which is called by buildRoom()
+    // No need to call setupTreasureCollisions() here as buildRoom() already handles it
 
     // Load sound effects and background music
     loadSounds(this);
@@ -211,7 +215,7 @@ export class RoomScene extends Phaser.Scene {
       
       // Log level completion time if debug logging is enabled
       if (DebugFlags.debugLog && this.roomStartTime > 0) {
-        const elapsedSeconds = (this.time.now - this.roomStartTime) / 1000;
+        const elapsedSeconds = (this.time.now - this.roomStartTime) / GameConfig.MILLISECONDS_PER_SECOND;
         console.log(`Room ${this.roomIndex} completed in ${elapsedSeconds.toFixed(2)} seconds`);
       }
       
@@ -228,10 +232,10 @@ export class RoomScene extends Phaser.Scene {
 
   update() {
     if (this.isGameOver) {
-      // Handle game over transition after 2 second delay
+      // Handle game over transition after delay
       if (!this.gameOverTransitioned) {
         this.gameOverTransitioned = true;
-        this.time.delayedCall(2000, () => {
+        this.time.delayedCall(GameConfig.GAME_OVER_TRANSITION_DELAY, () => {
           // Transition back to MainScene with final score
           this.scene.start('main', { finalScore: this.score });
         });
@@ -430,12 +434,15 @@ export class RoomScene extends Phaser.Scene {
       return; // No treasure to set up collisions for
     }
     this.physics.add.overlap(this.player, this.treasure, () => {
+      // Defensive null check - treasure might have been destroyed elsewhere
+      if (!this.treasure) {
+        return;
+      }
+      
       this.addScore(GameConfig.SCORE_TREASURE);
       // Destroy treasure when collected (new treasure spawns only at start of new room)
-      if (this.treasure) {
-        this.treasure.destroy();
-        this.treasure = null;
-      }
+      this.treasure.destroy();
+      this.treasure = null;
       
       // Play pickup sound
       playPickupSound(this);
@@ -497,8 +504,8 @@ export class RoomScene extends Phaser.Scene {
     const treasureY = this.treasure.y;
     const wallX = (playerX + treasureX) / 2;
     const wallY = (playerY + treasureY) / 2;
-    // Wall height should be based on room height, not screen height, and never exceed 50%
-    const wallHeight = Math.min(roomHeight * GameConfig.WALL_HEIGHT_RATIO, roomHeight * 0.5);
+    // Wall height should be based on room height, not screen height, and never exceed max ratio
+    const wallHeight = Math.min(roomHeight * GameConfig.WALL_HEIGHT_RATIO, roomHeight * GameConfig.WALL_HEIGHT_MAX_RATIO);
     this.createWall(wallX, wallY, wallThickness, wallHeight);
     
     for (let i = 0; i < GameConfig.ENEMY_COUNT; i++) {
@@ -536,7 +543,12 @@ export class RoomScene extends Phaser.Scene {
     this.physics.add.existing(this.treasure, true);
     
     // Re-establish collisions with the new treasure
-    this.setupTreasureCollisions();
+    // Defensive check: ensure treasure was created successfully
+    if (this.treasure) {
+      this.setupTreasureCollisions();
+    } else {
+      console.error('Failed to create treasure in placeTreasure()');
+    }
   }
 
   private spawnEnemy() {
@@ -550,7 +562,7 @@ export class RoomScene extends Phaser.Scene {
     this.physics.add.existing(enemy);
     const enemyBody = this.getEnemyBody(enemy);
     this.setRandomEnemyVelocity(enemyBody);
-    enemyBody.setBounce(1, 1);
+    enemyBody.setBounce(GameConfig.ENEMY_BOUNCE_X, GameConfig.ENEMY_BOUNCE_Y);
     enemyBody.setCollideWorldBounds(true);
   }
 
@@ -561,14 +573,14 @@ export class RoomScene extends Phaser.Scene {
     
     // Spawn at the top of the room, centered horizontally
     const x = width / 2;
-    const y = topWallY + wallThickness / 2 + Sizes.ENEMY_RADIUS + 10; // Just below top wall
+    const y = topWallY + wallThickness / 2 + Sizes.ENEMY_RADIUS + GameConfig.PURPLE_ENEMY_SPAWN_OFFSET;
     
     const enemy = this.add.circle(x, y, Sizes.ENEMY_RADIUS, Colors.ENEMY_PURPLE);
     this.enemies.add(enemy);
     this.purpleEnemies.add(enemy); // Track as purple enemy
     this.physics.add.existing(enemy);
     const enemyBody = this.getEnemyBody(enemy);
-    enemyBody.setBounce(1, 1);
+    enemyBody.setBounce(GameConfig.ENEMY_BOUNCE_X, GameConfig.ENEMY_BOUNCE_Y);
     enemyBody.setCollideWorldBounds(true);
     // Initial velocity will be set in updatePurpleEnemies
   }
@@ -580,8 +592,8 @@ export class RoomScene extends Phaser.Scene {
 
     const playerX = this.player.x;
     const playerY = this.player.y;
-    // Purple enemy is 5% faster than the player
-    const speed = Speeds.PLAYER * 1.05;
+    // Purple enemy is faster than the player
+    const speed = Speeds.PLAYER * GameConfig.PURPLE_ENEMY_SPEED_MULTIPLIER;
 
     // Update each purple enemy to move toward player
     this.purpleEnemies.forEach((enemy) => {
@@ -626,22 +638,21 @@ export class RoomScene extends Phaser.Scene {
     }
 
     // Calculate elapsed time in seconds
-    const elapsedSeconds = (this.time.now - this.roomStartTime) / 1000;
+    const elapsedSeconds = (this.time.now - this.roomStartTime) / GameConfig.MILLISECONDS_PER_SECOND;
 
-    // Spawn chance starts at 5 seconds with 5% chance
-    if (elapsedSeconds < 5) {
+    // Spawn chance starts after configured time with base chance
+    if (elapsedSeconds < GameConfig.ENEMY_SPAWN_START_TIME) {
       return;
     }
 
-    // Calculate probability: starting at 5% at 5 seconds, increasing by 5% each second
-    // At 5 seconds: 5% chance
-    // At 6 seconds: 10% chance
-    // At 7 seconds: 15% chance
-    // At 24 seconds: 100% chance (capped)
-    const probability = Math.min((elapsedSeconds - 4) * 5, 100);
+    // Calculate probability: starting at base chance, increasing by increment each second
+    const probability = Math.min(
+      (elapsedSeconds - GameConfig.ENEMY_SPAWN_TIME_OFFSET) * GameConfig.ENEMY_SPAWN_CHANCE_INCREMENT,
+      GameConfig.ENEMY_SPAWN_MAX_CHANCE
+    );
 
-    // Roll random chance (0-100)
-    const roll = Phaser.Math.Between(0, 100);
+    // Roll random chance
+    const roll = Phaser.Math.Between(GameConfig.ENEMY_SPAWN_ROLL_MIN, GameConfig.ENEMY_SPAWN_ROLL_MAX);
 
     if (roll < probability) {
       // Mark that we've spawned an extra enemy for this room

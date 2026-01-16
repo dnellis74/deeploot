@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { Colors, Sizes, Positions, GameConfig } from "../config/gameConfig";
+import { Colors, Sizes, Positions, GameConfig, UILayout } from "../config/gameConfig";
 import { getHighScores, addHighScore, formatHighScoreDate } from "../config/highScores";
 import dungeonWallImageUrl from "../assets/image/dungeon_brick_wall__8_bit__by_trarian_dez45u1-375w-2x.jpg";
 
@@ -61,15 +61,15 @@ export class MainScene extends Phaser.Scene {
     this.highScoreTexts = [];
 
     // Display "High Scores" label
-    const labelY = Positions.INSTRUCTION_Y + 40;
+    const labelY = Positions.INSTRUCTION_Y + UILayout.HIGH_SCORE_LABEL_OFFSET_Y;
     this.add.text(width / 2, labelY, "High Scores", {
       fontSize: Sizes.INSTRUCTION_FONT,
       color: Colors.TEXT_PRIMARY
     }).setOrigin(0.5, 0).setDepth(GameConfig.UI_Z_DEPTH);
 
     // Display high scores list
-    const startY = labelY + 30;
-    const lineHeight = 20;
+    const startY = labelY + UILayout.HIGH_SCORE_START_OFFSET_Y;
+    const lineHeight = UILayout.HIGH_SCORE_LINE_HEIGHT;
 
     if (scores.length === 0) {
       // Show "No scores yet" message
@@ -100,14 +100,19 @@ export class MainScene extends Phaser.Scene {
 
     // Position start button below high scores (or in center if no scores)
     const buttonY = this.highScoreTexts.length > 0
-      ? this.highScoreTexts[this.highScoreTexts.length - 1].y + 50
-      : height / 2 + 50;
+      ? this.highScoreTexts[this.highScoreTexts.length - 1].y + UILayout.START_BUTTON_OFFSET_Y
+      : height / 2 + UILayout.START_BUTTON_OFFSET_Y;
 
     this.startButton = this.add.text(width / 2, buttonY, "START", {
       fontSize: "24px",
       color: Colors.TEXT_PRIMARY,
       backgroundColor: `#${Colors.WALL.toString(16).padStart(6, '0')}`,
-      padding: { left: 20, right: 20, top: 10, bottom: 10 }
+      padding: {
+        left: UILayout.START_BUTTON_PADDING_LEFT,
+        right: UILayout.START_BUTTON_PADDING_RIGHT,
+        top: UILayout.START_BUTTON_PADDING_TOP,
+        bottom: UILayout.START_BUTTON_PADDING_BOTTOM
+      }
     }).setOrigin(0.5, 0.5)
       .setDepth(GameConfig.UI_Z_DEPTH)
       .setInteractive({ useHandCursor: true })

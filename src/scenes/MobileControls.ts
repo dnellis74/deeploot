@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { GameConfig } from "../config/gameConfig";
+import { GameConfig, MobileControlsConfig } from "../config/gameConfig";
 import type { VirtualJoystickInstance, PhaserPluginsWithJoystick } from "../types/joystick";
 
 // Interface for scenes that support mobile controls
@@ -33,10 +33,16 @@ export class MobileControls {
   }
 
   setupFireButton(width: number, height: number): void {
-    // Bottom safe area offset for iPhone 16: ~34 points
-    const bottomSafeArea = 34;
     // Create a fire button for mobile, accounting for bottom safe area
-    const fireButton = this.scene.add.circle(width - 100, height - 100 - bottomSafeArea, 40, 0xff4444, 0.7);
+    const fireButtonX = width - MobileControlsConfig.FIRE_BUTTON_OFFSET_X;
+    const fireButtonY = height - MobileControlsConfig.FIRE_BUTTON_OFFSET_Y - MobileControlsConfig.BOTTOM_SAFE_AREA;
+    const fireButton = this.scene.add.circle(
+      fireButtonX,
+      fireButtonY,
+      MobileControlsConfig.FIRE_BUTTON_RADIUS,
+      MobileControlsConfig.FIRE_BUTTON_COLOR,
+      MobileControlsConfig.FIRE_BUTTON_ALPHA
+    );
     fireButton.setInteractive({ useHandCursor: true });
     fireButton.setDepth(GameConfig.UI_Z_DEPTH);
     fireButton.on('pointerdown', () => {
@@ -45,33 +51,43 @@ export class MobileControls {
         this.scene.nextFire = this.scene.time.now + GameConfig.FIRE_RATE_DELAY;
       }
     });
-    fireButton.on('pointerover', () => fireButton.setAlpha(0.9));
-    fireButton.on('pointerout', () => fireButton.setAlpha(0.7));
+    fireButton.on('pointerover', () => fireButton.setAlpha(MobileControlsConfig.FIRE_BUTTON_ALPHA_HOVER));
+    fireButton.on('pointerout', () => fireButton.setAlpha(MobileControlsConfig.FIRE_BUTTON_ALPHA));
   }
 
   setupJoystick(height: number): void {
-    const plugins = this.scene.plugins as PhaserPluginsWithJoystick;
+    const plugins = this.scene.plugins as unknown as PhaserPluginsWithJoystick;
     const joystickPlugin = plugins.get('rexvirtualjoystickplugin');
 
     if (joystickPlugin) {
-      // Bottom safe area offset for iPhone 16: ~34 points
-      const bottomSafeArea = 34;
-      const joystickX = 100;
-      const joystickY = height - 100 - bottomSafeArea;
+      const joystickX = MobileControlsConfig.JOYSTICK_OFFSET_X;
+      const joystickY = height - MobileControlsConfig.JOYSTICK_OFFSET_Y - MobileControlsConfig.BOTTOM_SAFE_AREA;
       
       // Create base and thumb at the joystick position
-      const base = this.scene.add.circle(joystickX, joystickY, 60, 0x888888, 0.5);
-      const thumb = this.scene.add.circle(joystickX, joystickY, 30, 0xcccccc, 0.8);
+      const base = this.scene.add.circle(
+        joystickX,
+        joystickY,
+        MobileControlsConfig.JOYSTICK_BASE_RADIUS,
+        MobileControlsConfig.JOYSTICK_BASE_COLOR,
+        MobileControlsConfig.JOYSTICK_BASE_ALPHA
+      );
+      const thumb = this.scene.add.circle(
+        joystickX,
+        joystickY,
+        MobileControlsConfig.JOYSTICK_THUMB_RADIUS,
+        MobileControlsConfig.JOYSTICK_THUMB_COLOR,
+        MobileControlsConfig.JOYSTICK_THUMB_ALPHA
+      );
       base.setDepth(GameConfig.UI_Z_DEPTH);
       thumb.setDepth(GameConfig.UI_Z_DEPTH + 1);
       
       this.scene.joystick = joystickPlugin.add(this.scene, {
         x: joystickX,
         y: joystickY,
-        radius: 60,
+        radius: MobileControlsConfig.JOYSTICK_BASE_RADIUS,
         base: base,
         thumb: thumb,
-        dir: '8dir'
+        dir: MobileControlsConfig.JOYSTICK_DIRECTION_MODE
       });
 
       // Create cursor keys from joystick - this allows joystick to work exactly like keyboard
