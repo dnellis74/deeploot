@@ -140,7 +140,11 @@ export class RoomScene extends Phaser.Scene {
     );
     this.physics.add.existing(this.player);
     const playerPhysicsBody = this.getPlayerBody();
-    playerPhysicsBody.setSize(Sizes.PLAYER_WIDTH, Sizes.PLAYER_HEIGHT);
+    // Use circular body to work correctly at any rotation (Arcade physics bodies don't rotate)
+    // Radius based on diagonal of triangle bounding box to cover all rotations
+    const diagonal = Math.sqrt(Sizes.PLAYER_WIDTH * Sizes.PLAYER_WIDTH + Sizes.PLAYER_HEIGHT * Sizes.PLAYER_HEIGHT);
+    const radius = diagonal / 2;
+    playerPhysicsBody.setCircle(radius);
     playerPhysicsBody.setCollideWorldBounds(true);
     this.lastDirection = 0; // Start facing up
     this.updatePlayerVisual();
