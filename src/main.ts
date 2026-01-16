@@ -15,7 +15,7 @@ const config: Phaser.Types.Core.GameConfig = {
         y: 0,
         x: 0
       },
-      debug: false
+      debug: true
     }
   },
   scale: {

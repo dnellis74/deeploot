@@ -70,9 +70,6 @@ export class ArrowManager {
         const rect = obj as Phaser.GameObjects.Rectangle;
         rect.setSize(Sizes.ARROW_WIDTH, Sizes.ARROW_HEIGHT);
         rect.setFillStyle(Colors.ARROW);
-        // Explicitly set physics body size to match visual size
-        const body = this.getArrowBody(rect);
-        body.setSize(Sizes.ARROW_WIDTH, Sizes.ARROW_HEIGHT);
       }
     });
   }
@@ -166,10 +163,11 @@ export class ArrowManager {
    */
   public setupWallCollisions(walls: Phaser.Physics.Arcade.StaticGroup): void {
     this.scene.physics.add.collider(this.arrows, walls, (arrow) => {
+      const arrowRect = arrow as Phaser.GameObjects.Rectangle;
       if (DebugFlags.debugLog) {
-        console.log(`Arrow destroyed: Collided with wall at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+        console.log(`Arrow destroyed: Collided with wall at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
       }
-      arrow.destroy();
+      arrowRect.destroy();
     });
   }
 
@@ -185,22 +183,23 @@ export class ArrowManager {
     onEnemyHit: (enemy: Phaser.GameObjects.Arc) => void
   ): void {
     this.scene.physics.add.overlap(this.arrows, enemies, (arrow, enemy) => {
+      const arrowRect = arrow as Phaser.GameObjects.Rectangle;
       const enemyCircle = enemy as Phaser.GameObjects.Arc;
       
       // Purple enemies are invulnerable to arrows - just destroy the arrow
       if (purpleEnemies.has(enemyCircle)) {
         if (DebugFlags.debugLog) {
-          console.log(`Arrow destroyed: Hit invulnerable purple enemy at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+          console.log(`Arrow destroyed: Hit invulnerable purple enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
         }
-        arrow.destroy();
+        arrowRect.destroy();
         return;
       }
       
       // Destroy the arrow
       if (DebugFlags.debugLog) {
-        console.log(`Arrow destroyed: Hit enemy at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+        console.log(`Arrow destroyed: Hit enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
       }
-      arrow.destroy();
+      arrowRect.destroy();
       
       // Call the hit callback
       onEnemyHit(enemyCircle);
