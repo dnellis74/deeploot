@@ -572,6 +572,7 @@ export class RoomScene extends Phaser.Scene {
 
     // Calculate elapsed time in seconds
     const elapsedSeconds = (this.time.now - this.roomStartTime) / GameConfig.MILLISECONDS_PER_SECOND;
+    console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}`);
 
     // Spawn chance starts after configured time with base chance
     if (elapsedSeconds < GameConfig.ENEMY_SPAWN_START_TIME) {
@@ -586,6 +587,8 @@ export class RoomScene extends Phaser.Scene {
 
     // Roll random chance
     const roll = Phaser.Math.Between(GameConfig.ENEMY_SPAWN_ROLL_MIN, GameConfig.ENEMY_SPAWN_ROLL_MAX);
+    console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}s, Probability: ${probability.toFixed(1)}%, Roll: ${roll}`);
+
 
     if (roll < probability) {
       // Mark that we've spawned an extra enemy for this room

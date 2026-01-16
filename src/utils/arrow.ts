@@ -52,7 +52,7 @@ export class ArrowManager {
         // Verify it's actually an arrow from our group
         if (this.arrows.contains(arrow)) {
           if (DebugFlags.debugLog) {
-            console.log(`Arrow destroyed: Hit world bounds at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+            //console.log(`Arrow destroyed: Hit world bounds at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
           }
           arrow.destroy();
         }
@@ -124,7 +124,7 @@ export class ArrowManager {
     const arrowStartY = playerY + Math.sin(angleRadians) * spawnOffset;
 
     if (DebugFlags.debugLog) {
-      console.log(`Arrow spawned: Player at (${playerX.toFixed(1)}, ${playerY.toFixed(1)}), Arrow at (${arrowStartX.toFixed(1)}, ${arrowStartY.toFixed(1)}), Direction: ${direction}`);
+      //console.log(`Arrow spawned: Player at (${playerX.toFixed(1)}, ${playerY.toFixed(1)}), Arrow at (${arrowStartX.toFixed(1)}, ${arrowStartY.toFixed(1)}), Direction: ${direction}`);
     }
 
     // Get/Create arrow from the Physics Group
@@ -165,7 +165,7 @@ export class ArrowManager {
     this.scene.physics.add.collider(this.arrows, walls, (arrow) => {
       const arrowRect = arrow as Phaser.GameObjects.Rectangle;
       if (DebugFlags.debugLog) {
-        console.log(`Arrow destroyed: Collided with wall at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
+        //console.log(`Arrow destroyed: Collided with wall at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
       }
       arrowRect.destroy();
     });
@@ -189,7 +189,7 @@ export class ArrowManager {
       // Purple enemies are invulnerable to arrows - just destroy the arrow
       if (purpleEnemies.has(enemyCircle)) {
         if (DebugFlags.debugLog) {
-          console.log(`Arrow destroyed: Hit invulnerable purple enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
+          //console.log(`Arrow destroyed: Hit invulnerable purple enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
         }
         arrowRect.destroy();
         return;
@@ -197,7 +197,7 @@ export class ArrowManager {
       
       // Destroy the arrow
       if (DebugFlags.debugLog) {
-        console.log(`Arrow destroyed: Hit enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
+        //console.log(`Arrow destroyed: Hit enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
       }
       arrowRect.destroy();
       

@@ -97,7 +97,6 @@ export const GameConfig = {
   MILLISECONDS_PER_SECOND: 1000, // Conversion factor
   // Enemy spawn probability constants
   ENEMY_SPAWN_START_TIME: 5, // Start checking for spawns after 5 seconds
-  ENEMY_SPAWN_BASE_CHANCE: 5, // Base spawn chance percentage
   ENEMY_SPAWN_CHANCE_INCREMENT: 5, // Increase spawn chance by this % per second
   ENEMY_SPAWN_TIME_OFFSET: 4, // Time offset for probability calculation
   ENEMY_SPAWN_MAX_CHANCE: 100, // Maximum spawn chance percentage
