@@ -22,8 +22,10 @@ export class MobileControls {
   }
 
   setupFireButton(width: number, height: number): void {
-    // Create a fire button for mobile
-    const fireButton = this.scene.add.circle(width - 100, height - 100, 40, 0xff4444, 0.7);
+    // Bottom safe area offset for iPhone 16: ~34 points
+    const bottomSafeArea = 34;
+    // Create a fire button for mobile, accounting for bottom safe area
+    const fireButton = this.scene.add.circle(width - 100, height - 100 - bottomSafeArea, 40, 0xff4444, 0.7);
     fireButton.setInteractive({ useHandCursor: true });
     fireButton.setDepth(MainScene.UI_Z_DEPTH);
     fireButton.on('pointerdown', () => {
@@ -40,8 +42,10 @@ export class MobileControls {
     const joystickPlugin = this.scene.plugins.get('rexvirtualjoystickplugin') as any;
 
     if (joystickPlugin) {
+      // Bottom safe area offset for iPhone 16: ~34 points
+      const bottomSafeArea = 34;
       const joystickX = 100;
-      const joystickY = height - 100;
+      const joystickY = height - 100 - bottomSafeArea;
       
       // Create base and thumb at the joystick position
       const base = this.scene.add.circle(joystickX, joystickY, 60, 0x888888, 0.5);

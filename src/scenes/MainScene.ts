@@ -52,12 +52,19 @@ export class MainScene extends Phaser.Scene {
   // ============================================================================
   // Constants - Positions & Offsets
   // ============================================================================
-  private static readonly POS_TITLE_Y = 24;
-  private static readonly POS_INSTRUCTION_Y = 48;
+  // Top safe area offset for iPhone 16: ~59 points (Dynamic Island + status bar)
+  private static readonly SAFE_AREA_TOP = 59;
+  // Controls area offset: space needed for joystick (60px radius) + fire button (40px radius) + buffer
+  // Controls are at height - 100 - 34 (safe area), so we need gameplay area to end above this
+  private static readonly CONTROLS_AREA_HEIGHT = 200;
+  // Room top offset: position of top wall below the instruction text
+  private static readonly ROOM_TOP_OFFSET = 140; // Below instructions (107 + ~33 for spacing)
+  private static readonly POS_TITLE_Y = 83; // 24 + 59 (safe area)
+  private static readonly POS_INSTRUCTION_Y = 107; // 48 + 59 (safe area)
   private static readonly POS_PLAYER_OFFSET_Y = 80;
   private static readonly POS_UI_X = 16;
-  private static readonly POS_UI_SCORE_Y = 16;
-  private static readonly POS_UI_ROOM_Y = 36;
+  private static readonly POS_UI_SCORE_Y = 75; // 16 + 59 (safe area)
+  private static readonly POS_UI_ROOM_Y = 95; // 36 + 59 (safe area)
   private static readonly POS_PADDING = 80;
   private static readonly POS_PADDING_TREASURE_Y_OFFSET = 40;
   private static readonly POS_SPAWN_MIN_X = 100;
@@ -116,6 +123,11 @@ export class MainScene extends Phaser.Scene {
   private lastDirection = 0; // 0-7 representing 8 directions
   nextFire = 0; // Fire rate limiting (public for MobileControls access)
 
+  // ---
+  // Debug flags
+  // ---
+  private static debugMutePads: boolean = true
+
   constructor() {
     super("main");
   }
@@ -151,7 +163,10 @@ export class MainScene extends Phaser.Scene {
 
     // Create player as a triangle (arrow pointing up initially)
     const playerX = width / 2;
-    const playerY = height - MainScene.POS_PLAYER_OFFSET_Y;
+    // Player spawn: bottom of room minus offset
+    const topWallY = MainScene.ROOM_TOP_OFFSET + MainScene.SIZE_WALL_THICKNESS / 2;
+    const bottomWallY = topWallY + width; // Square room
+    const playerY = bottomWallY - MainScene.POS_PLAYER_OFFSET_Y;
     this.player = this.add.triangle(
       playerX,
       playerY,
@@ -186,7 +201,10 @@ export class MainScene extends Phaser.Scene {
     const wallThickness = MainScene.SIZE_WALL_THICKNESS;
     const doorWidth = MainScene.SIZE_DOOR_WIDTH;
     const doorX = width / 2;
-    const doorY = height - wallThickness / 2;
+    // Door position will be set in buildRoom, use temporary position here
+    const doorTopWallY = MainScene.ROOM_TOP_OFFSET + wallThickness / 2;
+    const roomHeight = width; // Square room
+    const doorY = doorTopWallY + roomHeight;
     this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, MainScene.COLOR_DOOR);
     this.physics.add.existing(this.door, true);
 
@@ -226,7 +244,9 @@ export class MainScene extends Phaser.Scene {
     this.load.audio('boom', boomSoundUrl);
     this.load.audio('pickup', pickupSoundUrl);
     this.load.audio('powerUp', powerUpSoundUrl);
-    this.load.audio('backgroundMusic', backgroundMusicUrl);
+    if (!MainScene.debugMutePads) {
+      this.load.audio('backgroundMusic', backgroundMusicUrl);
+    }
     this.load.start();
     
     // Play background music when loaded
@@ -457,25 +477,33 @@ export class MainScene extends Phaser.Scene {
     this.enemies.clear(true, true);
     this.treasure?.destroy();
 
+    // Calculate room dimensions to be roughly square
+    // Top wall center should be at ROOM_TOP_OFFSET + wallThickness/2
+    const topWallY = MainScene.ROOM_TOP_OFFSET + wallThickness / 2;
+    // Room height = width (for square), so bottom wall center = topWallY + width
+    const roomHeight = width; // Make room square (width = 393)
+    const bottomWallY = topWallY + roomHeight;
     const doorX = width / 2;
-    const doorY = height - wallThickness / 2;
+    const doorY = bottomWallY;
     const doorHalfWidth = doorWidth / 2;
 
-    // Create top wall (full wall)
-    this.createWall(width / 2, wallThickness / 2, width, wallThickness);
+    // Create top wall (full wall) - positioned below instruction text
+    this.createWall(width / 2, topWallY, width, wallThickness);
     // Create bottom wall with door opening (door stays stationary)
     const bottomWallSegmentWidth = width / 2 - doorHalfWidth;
     this.createWall(doorX - doorHalfWidth - bottomWallSegmentWidth / 2, doorY, bottomWallSegmentWidth, wallThickness);
     this.createWall(doorX + doorHalfWidth + bottomWallSegmentWidth / 2, doorY, bottomWallSegmentWidth, wallThickness);
-    // Create left and right walls
-    this.createWall(wallThickness / 2, height / 2, wallThickness, height);
-    this.createWall(width - wallThickness / 2, height / 2, wallThickness, height);
+    // Create left and right walls (spanning the room height)
+    const roomCenterY = (topWallY + bottomWallY) / 2;
+    this.createWall(wallThickness / 2, roomCenterY, wallThickness, roomHeight + wallThickness);
+    this.createWall(width - wallThickness / 2, roomCenterY, wallThickness, roomHeight + wallThickness);
 
     this.placeTreasure();
     
     // Place a wall between player and treasure
     const playerX = width / 2;
-    const playerY = height - MainScene.POS_PLAYER_OFFSET_Y;
+    // Player spawn: bottom of room minus offset (reuse bottomWallY from above)
+    const playerY = bottomWallY - MainScene.POS_PLAYER_OFFSET_Y;
     const treasureX = this.treasure.x;
     const treasureY = this.treasure.y;
     const wallX = (playerX + treasureX) / 2;
@@ -506,10 +534,13 @@ export class MainScene extends Phaser.Scene {
       this.treasure.destroy();
     }
 
-    // Create a new treasure at a random position
+    // Create a new treasure at a random position within the room
     const padding = MainScene.POS_PADDING;
+    const topWallY = MainScene.ROOM_TOP_OFFSET + MainScene.SIZE_WALL_THICKNESS / 2;
+    const roomTop = topWallY + MainScene.SIZE_WALL_THICKNESS / 2 + padding;
+    const roomBottom = topWallY + this.scale.width - MainScene.SIZE_WALL_THICKNESS / 2 - padding;
     const x = Phaser.Math.Between(padding, this.scale.width - padding);
-    const y = Phaser.Math.Between(padding + MainScene.POS_PADDING_TREASURE_Y_OFFSET, this.scale.height - padding);
+    const y = Phaser.Math.Between(roomTop + MainScene.POS_PADDING_TREASURE_Y_OFFSET, roomBottom);
     
     this.treasure = this.add.circle(x, y, MainScene.SIZE_TREASURE_RADIUS, MainScene.COLOR_TREASURE);
     this.physics.add.existing(this.treasure, true);
@@ -519,8 +550,11 @@ export class MainScene extends Phaser.Scene {
   }
 
   private spawnEnemy() {
+    const topWallY = MainScene.ROOM_TOP_OFFSET + MainScene.SIZE_WALL_THICKNESS / 2;
+    const roomTop = topWallY + MainScene.SIZE_WALL_THICKNESS / 2;
+    const roomBottom = topWallY + this.scale.width - MainScene.SIZE_WALL_THICKNESS / 2;
     const x = Phaser.Math.Between(MainScene.POS_SPAWN_MIN_X, this.scale.width - MainScene.POS_SPAWN_MIN_X);
-    const y = Phaser.Math.Between(MainScene.POS_SPAWN_MIN_Y, this.scale.height - MainScene.POS_SPAWN_MAX_Y_OFFSET);
+    const y = Phaser.Math.Between(Math.max(roomTop + MainScene.POS_SPAWN_MIN_Y, MainScene.POS_SPAWN_MIN_Y), roomBottom - MainScene.POS_SPAWN_MAX_Y_OFFSET);
     const enemy = this.add.circle(x, y, MainScene.SIZE_ENEMY_RADIUS, MainScene.COLOR_ENEMY);
     this.enemies.add(enemy);
     this.physics.add.existing(enemy);

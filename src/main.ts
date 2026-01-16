@@ -11,8 +11,8 @@ function initGame() {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent: "app",
-    width: 800,
-    height: 600,
+    width: 393,
+    height: 759,
     backgroundColor: "#0b0f1a",
     physics: {
       default: "arcade",
@@ -25,7 +25,7 @@ function initGame() {
       }
     },
     scale: {
-      mode: Phaser.Scale.FIT,
+      mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH
     },
     plugins: joystickPlugin ? {
