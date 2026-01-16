@@ -30,11 +30,11 @@ export class RoomScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Triangle;
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private fireKey?: Phaser.Input.Keyboard.Key;
-  joystick!: VirtualJoystickInstance; // Rex Virtual Joystick (public for MobileControls access)
+  public joystick!: VirtualJoystickInstance; // Rex Virtual Joystick (public for MobileControls access)
   private isMobile: boolean = false;
-  joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Public for MobileControls access
+  public joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Public for MobileControls access
   private walls!: Phaser.Physics.Arcade.StaticGroup;
-  arrows!: Phaser.Physics.Arcade.Group; // Public for MobileControls access
+  public arrows!: Phaser.Physics.Arcade.Group; // Public for MobileControls access
   private door!: Phaser.GameObjects.Rectangle;
   private treasure: Phaser.GameObjects.Arc | null = null;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -43,9 +43,9 @@ export class RoomScene extends Phaser.Scene {
   private roomText!: Phaser.GameObjects.Text;
   private score = 0;
   private roomIndex = 1;
-  isGameOver = false; // Public for MobileControls access
+  public isGameOver = false; // Public for MobileControls access
   private lastDirection = 0; // 0-7 representing 8 directions
-  nextFire = 0; // Fire rate limiting (public for MobileControls access)
+  public nextFire = 0; // Fire rate limiting (public for MobileControls access)
   private roomStartTime = 0; // Timestamp when the current room started
   private hasSpawnedExtraEnemy = false; // Track if extra enemy has been spawned for current room
   private gameOverTransitioned = false; // Track if we've already triggered the transition back to MainScene
@@ -326,7 +326,7 @@ export class RoomScene extends Phaser.Scene {
     this.player.setRotation(Phaser.Math.DegToRad(DirectionAngles[this.lastDirection]));
   }
 
-  shootArrow() { // Public for MobileControls access
+  public shootArrow(): void { // Public for MobileControls access
     const arrowSpeed = Speeds.ARROW;
     const angle = DirectionAngles[this.lastDirection];
     const angleRadians = Phaser.Math.DegToRad(angle + GameConfig.ANGLE_OFFSET);
@@ -724,13 +724,5 @@ export class RoomScene extends Phaser.Scene {
   private addScore(points: number): void {
     this.score += points;
     this.scoreText.setText(`Score: ${this.score}`);
-  }
-
-  private getCenterX(): number {
-    return this.scale.width / 2;
-  }
-
-  private getCenterY(): number {
-    return this.scale.height / 2;
   }
 }

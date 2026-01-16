@@ -15,6 +15,16 @@ export interface IGameScene extends Phaser.Scene {
 export class MobileControls {
   constructor(private scene: IGameScene) {}
 
+  /**
+   * Calculates the Y position accounting for bottom safe area
+   * @param height - Screen height
+   * @param offsetY - Offset from bottom (before safe area)
+   * @returns Y position with safe area accounted for
+   */
+  private calculateYWithSafeArea(height: number, offsetY: number): number {
+    return height - offsetY - MobileControlsConfig.BOTTOM_SAFE_AREA;
+  }
+
   loadAndSetup(): void {
     try {
       // Load the plugin from CDN
@@ -35,7 +45,7 @@ export class MobileControls {
   setupFireButton(width: number, height: number): void {
     // Create a fire button for mobile, accounting for bottom safe area
     const fireButtonX = width - MobileControlsConfig.FIRE_BUTTON_OFFSET_X;
-    const fireButtonY = height - MobileControlsConfig.FIRE_BUTTON_OFFSET_Y - MobileControlsConfig.BOTTOM_SAFE_AREA;
+    const fireButtonY = this.calculateYWithSafeArea(height, MobileControlsConfig.FIRE_BUTTON_OFFSET_Y);
     const fireButton = this.scene.add.circle(
       fireButtonX,
       fireButtonY,
@@ -61,7 +71,7 @@ export class MobileControls {
 
     if (joystickPlugin) {
       const joystickX = MobileControlsConfig.JOYSTICK_OFFSET_X;
-      const joystickY = height - MobileControlsConfig.JOYSTICK_OFFSET_Y - MobileControlsConfig.BOTTOM_SAFE_AREA;
+      const joystickY = this.calculateYWithSafeArea(height, MobileControlsConfig.JOYSTICK_OFFSET_Y);
       
       // Create base and thumb at the joystick position
       const base = this.scene.add.circle(
