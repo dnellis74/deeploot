@@ -5,8 +5,7 @@ import type { VirtualJoystickInstance, PhaserPluginsWithJoystick } from "../type
 // Interface for scenes that support mobile controls
 export interface IGameScene extends Phaser.Scene {
   isGameOver: boolean;
-  nextFire: number;
-  arrows: Phaser.Physics.Arcade.Group;
+  arrowManager: { getArrows(): Phaser.Physics.Arcade.Group; canFire(): boolean; getNextFire(): number; setNextFire(time: number): void };
   joystick?: VirtualJoystickInstance;
   joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   shootArrow(): void;
@@ -56,9 +55,8 @@ export class MobileControls {
     fireButton.setInteractive({ useHandCursor: true });
     fireButton.setDepth(GameConfig.UI_Z_DEPTH);
     fireButton.on('pointerdown', () => {
-      if (!this.scene.isGameOver && this.scene.time.now > this.scene.nextFire && this.scene.arrows.countActive(true) === 0) {
+      if (!this.scene.isGameOver && this.scene.arrowManager.canFire()) {
         this.scene.shootArrow();
-        this.scene.nextFire = this.scene.time.now + GameConfig.FIRE_RATE_DELAY;
       }
     });
     fireButton.on('pointerover', () => fireButton.setAlpha(MobileControlsConfig.FIRE_BUTTON_ALPHA_HOVER));

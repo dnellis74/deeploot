@@ -12,7 +12,6 @@ import {
 import {
   loadSounds,
   playBackgroundMusic,
-  playShootSound,
   playHitSound,
   playBoomSound,
   playPickupSound,
@@ -21,6 +20,7 @@ import {
 import { DebugFlags } from "../config/debug";
 import dungeonWallImageUrl from "../assets/image/dungeon_brick_wall__8_bit__by_trarian_dez45u1-375w-2x.jpg";
 import type { VirtualJoystickInstance } from "../types/joystick";
+import { ArrowManager } from "../utils/arrow";
 
 export class RoomScene extends Phaser.Scene {
 
@@ -34,7 +34,7 @@ export class RoomScene extends Phaser.Scene {
   private isMobile: boolean = false;
   public joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Public for MobileControls access
   private walls!: Phaser.Physics.Arcade.StaticGroup;
-  public arrows!: Phaser.Physics.Arcade.Group; // Public for MobileControls access
+  public arrowManager!: ArrowManager; // Arrow management (public for MobileControls access)
   private door!: Phaser.GameObjects.Rectangle;
   private treasure: Phaser.GameObjects.Arc | null = null;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -45,7 +45,6 @@ export class RoomScene extends Phaser.Scene {
   private roomIndex = 1;
   public isGameOver = false; // Public for MobileControls access
   private lastDirection = 0; // 0-7 representing 8 directions
-  public nextFire = 0; // Fire rate limiting (public for MobileControls access)
   private roomStartTime = 0; // Timestamp when the current room started
   private hasSpawnedExtraEnemy = false; // Track if extra enemy has been spawned for current room
   private gameOverTransitioned = false; // Track if we've already triggered the transition back to MainScene
@@ -149,14 +148,7 @@ export class RoomScene extends Phaser.Scene {
     
     this.walls = this.physics.add.staticGroup();
     this.enemies = this.physics.add.group();
-    this.arrows = this.physics.add.group({
-      classType: Phaser.GameObjects.Rectangle, // Tells the group to create Rectangles
-      createCallback: (obj) => {
-          const rect = obj as Phaser.GameObjects.Rectangle;
-          rect.setSize(Sizes.ARROW_WIDTH, Sizes.ARROW_HEIGHT);
-          rect.setFillStyle(Colors.ARROW);
-      }
-  });
+    this.arrowManager = new ArrowManager(this);
 
     // Create door once - it stays stationary on the wall
     const doorWidth = Sizes.DOOR_WIDTH;
@@ -178,9 +170,7 @@ export class RoomScene extends Phaser.Scene {
     }).setDepth(GameConfig.UI_Z_DEPTH);
 
     this.physics.add.collider(this.player, this.walls);
-    this.physics.add.collider(this.arrows, this.walls, (arrow) => {
-      arrow.destroy();
-    });
+    this.arrowManager.setupWallCollisions(this.walls);
 
     // Set up enemy collisions (once for the group, works for all enemies)
     this.setupEnemyCollisions();
@@ -277,18 +267,14 @@ export class RoomScene extends Phaser.Scene {
     }
 
     // Handle firing (only if no arrows exist) - keyboard only (mobile uses button)
-    if (!this.isMobile && this.fireKey?.isDown && this.time.now > this.nextFire && this.arrows.countActive(true) === 0) {
+    if (!this.isMobile && this.fireKey?.isDown && this.arrowManager.canFire()) {
       this.shootArrow();
-      this.nextFire = this.time.now + GameConfig.FIRE_RATE_DELAY;
     }
 
     playerBody.setVelocity(velocityX, velocityY);
 
     // Update purple enemies to move toward player
     this.updatePurpleEnemies();
-
-    // Clean up arrows that go off screen
-    this.cleanupArrows();
   }
 
 
@@ -327,55 +313,9 @@ export class RoomScene extends Phaser.Scene {
   }
 
   public shootArrow(): void { // Public for MobileControls access
-    const arrowSpeed = Speeds.ARROW;
-    const angle = DirectionAngles[this.lastDirection];
-    const angleRadians = Phaser.Math.DegToRad(angle + GameConfig.ANGLE_OFFSET);
-
-    // 1. Get/Create from the Physics Group directly
-    // This handles adding to the group and physics setup in one go
-    const arrow = this.arrows.get(this.player.x, this.player.y) as Phaser.GameObjects.Rectangle;
-
-    if (arrow) {
-        arrow.setActive(true).setVisible(true);
-        
-        // 2. Set rotation
-        arrow.setRotation(angleRadians);
-        
-        // 3. Set Velocity (Cast to Physics Body)
-        const body = this.getArrowBody(arrow);
-        body.setVelocity(
-            Math.cos(angleRadians) * arrowSpeed,
-            Math.sin(angleRadians) * arrowSpeed
-        );
-
-        // 4. Cleanup: Destroy arrow if it leaves the world bounds
-        body.setCollideWorldBounds(true);
-        body.onWorldBounds = true; 
-        // Note: You'll need this.physics.world.on('worldbounds', ...) to actually kill it
-
-        // Play shoot sound
-        playShootSound(this);
-    }
-}
-
-  private cleanupArrows() {
-    const { width, height } = this.scale;
-    const arrowsToDestroy: Phaser.GameObjects.Rectangle[] = [];
-    const cleanupOffset = Positions.CLEANUP_OFFSET;
-    
-    this.forEachArrow((arrow) => {
-      if (
-        arrow.x < -cleanupOffset ||
-        arrow.x > width + cleanupOffset ||
-        arrow.y < -cleanupOffset ||
-        arrow.y > height + cleanupOffset
-      ) {
-        arrowsToDestroy.push(arrow);
-      }
-    });
-    
-    arrowsToDestroy.forEach((arrow) => arrow.destroy());
+    this.arrowManager.shootArrow(this.player.x, this.player.y, this.lastDirection);
   }
+
 
   // ============================================================================
   // Collision Handlers
@@ -388,28 +328,21 @@ export class RoomScene extends Phaser.Scene {
     this.physics.add.collider(this.enemies, this.walls);
     
     // Overlap with arrows
-    this.physics.add.overlap(this.arrows, this.enemies, (arrow, enemy) => {
-      const enemyCircle = enemy as Phaser.GameObjects.Arc;
-      
-      // Purple enemies are invulnerable to arrows - just destroy the arrow
-      if (this.purpleEnemies.has(enemyCircle)) {
-        arrow.destroy();
-        return;
+    this.arrowManager.setupEnemyCollisions(
+      this.enemies,
+      this.purpleEnemies,
+      (enemy) => {
+        // Turn enemy red, stop moving, but don't destroy
+        enemy.setFillStyle(Colors.ENEMY_HIT);
+        const enemyBody = this.getEnemyBody(enemy);
+        enemyBody.setVelocity(0, 0); // Stop movement
+        
+        this.addScore(GameConfig.SCORE_ENEMY);
+        
+        // Play hit sound
+        playHitSound(this);
       }
-      
-      // Destroy the projectile (arrow), not the enemy
-      arrow.destroy();
-      
-      // Turn enemy red, stop moving, but don't destroy
-      enemyCircle.setFillStyle(Colors.ENEMY_HIT);
-      const enemyBody = this.getEnemyBody(enemyCircle);
-      enemyBody.setVelocity(0, 0); // Stop movement
-      
-      this.addScore(GameConfig.SCORE_ENEMY);
-      
-      // Play hit sound
-      playHitSound(this);
-    });
+    );
 
     // Overlap with player (game over)
     this.physics.add.overlap(this.player, this.enemies, () => {
@@ -464,7 +397,7 @@ export class RoomScene extends Phaser.Scene {
     this.hasSpawnedExtraEnemy = false;
 
     this.walls.clear(true, true);
-    this.arrows.clear(true, true);
+    this.arrowManager.clear();
     this.enemies.clear(true, true);
     this.purpleEnemies.clear(); // Clear purple enemy tracking
     this.treasure?.destroy();
@@ -690,10 +623,6 @@ export class RoomScene extends Phaser.Scene {
     return enemy.body as Phaser.Physics.Arcade.Body;
   }
 
-  private getArrowBody(arrow: Phaser.GameObjects.Rectangle): Phaser.Physics.Arcade.Body {
-    return arrow.body as Phaser.Physics.Arcade.Body;
-  }
-
   private forEachActiveEnemy(
     callback: (enemy: Phaser.GameObjects.Arc, enemyBody: Phaser.Physics.Arcade.Body) => void
   ): void {
@@ -706,12 +635,6 @@ export class RoomScene extends Phaser.Scene {
     });
   }
 
-  private forEachArrow(callback: (arrow: Phaser.GameObjects.Rectangle) => void): void {
-    this.arrows.children.entries.forEach((child) => {
-      const arrow = child as Phaser.GameObjects.Rectangle;
-      callback(arrow);
-    });
-  }
 
   private setRandomEnemyVelocity(enemyBody: Phaser.Physics.Arcade.Body): void {
     const speed = Speeds.ENEMY;
