@@ -6,6 +6,8 @@ import dungeonWallImageUrl from "../assets/image/dungeon_brick_wall__8_bit__by_t
 export class MainScene extends Phaser.Scene {
   private highScoreTexts: Phaser.GameObjects.Text[] = [];
   private startButton!: Phaser.GameObjects.Text;
+  private spaceKey!: Phaser.Input.Keyboard.Key;
+  private hasStarted = false; // Prevent multiple start triggers
 
   constructor() {
     super("main");
@@ -17,6 +19,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(data?: { finalScore?: number }) {
+    // Reset start flag when scene is created
+    this.hasStarted = false;
+
     const { width, height } = this.scale;
 
     // Create tiled dungeon wall background covering the entire game area
@@ -40,6 +45,11 @@ export class MainScene extends Phaser.Scene {
 
     // Create start button
     this.createStartButton();
+
+    // Set up keyboard input for space key (fire button)
+    if (this.input.keyboard) {
+      this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    }
   }
 
   private displayHighScores() {
@@ -108,9 +118,25 @@ export class MainScene extends Phaser.Scene {
       .on('pointerout', () => {
         this.startButton.setStyle({ color: Colors.TEXT_PRIMARY });
       });
+
+    // Also allow touch via pointerup for better mobile support
+    this.startButton.on('pointerup', () => this.handleStartButton());
+  }
+
+  update() {
+    // Check for space key (fire button) press
+    if (!this.hasStarted && this.spaceKey?.isDown) {
+      this.handleStartButton();
+    }
   }
 
   private handleStartButton() {
+    // Prevent multiple triggers
+    if (this.hasStarted) {
+      return;
+    }
+    this.hasStarted = true;
+    
     // Transition to RoomScene
     this.scene.start('room');
   }

@@ -32,28 +32,5 @@
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
-    <script>
-      // Wait for Phaser to be exposed, then load plugin from CDN
-      function loadPlugin() {
-        if (window.Phaser) {
-          // Phaser is available, load the plugin from jsDelivr CDN (handles CORS properly)
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/gh/rexrainbow/phaser3-rex-notes@master/dist/rexvirtualjoystickplugin.min.js';
-          script.crossOrigin = 'anonymous';
-          script.onload = function() {
-            window.rexPluginLoaded = true;
-            console.log('Rex Virtual Joystick plugin loaded from CDN');
-          };
-          script.onerror = function() {
-            console.warn('Failed to load Rex Virtual Joystick plugin from CDN');
-          };
-          document.head.appendChild(script);
-        } else {
-          // Try again after a short delay
-          setTimeout(loadPlugin, 50);
-        }
-      }
-      loadPlugin();
-    </script>
   </body>
 </html>
