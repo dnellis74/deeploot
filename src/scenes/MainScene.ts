@@ -1,12 +1,5 @@
 import Phaser from "phaser";
-import shootSoundUrl from "../assets/sounds/Shoot33.wav";
-import hitSoundUrl from "../assets/sounds/Hit2.wav";
-import boomSoundUrl from "../assets/sounds/Boom2.wav";
-import pickupSoundUrl from "../assets/sounds/Pickup1.wav";
-import powerUpSoundUrl from "../assets/sounds/PowerUp2.wav";
-import backgroundMusicUrl from "../assets/sounds/caverns.ogg";
 import { MobileControls } from "./MobileControls";
-import { DebugFlags } from "../config/debug";
 import {
   Colors,
   Sizes,
@@ -16,6 +9,15 @@ import {
   PlayerTrianglePoints,
   DirectionAngles,
 } from "../config/gameConfig";
+import {
+  loadSounds,
+  playBackgroundMusic,
+  playShootSound,
+  playHitSound,
+  playBoomSound,
+  playPickupSound,
+  playPowerUpSound,
+} from "../config/sounds";
 
 export class MainScene extends Phaser.Scene {
 
@@ -151,23 +153,9 @@ export class MainScene extends Phaser.Scene {
     // Set up treasure collisions (will be re-established after each spawn)
     this.setupTreasureCollisions();
 
-    // Load sound effects
-    this.load.audio('shoot', shootSoundUrl);
-    this.load.audio('hit', hitSoundUrl);
-    this.load.audio('boom', boomSoundUrl);
-    this.load.audio('pickup', pickupSoundUrl);
-    this.load.audio('powerUp', powerUpSoundUrl);
-    if (!DebugFlags.mutePads) {
-      this.load.audio('backgroundMusic', backgroundMusicUrl);
-    }
-    this.load.start();
-    
-    // Play background music when loaded (only if not muted)
-    if (!DebugFlags.mutePads) {
-      this.load.once('complete', () => {
-        this.sound.play('backgroundMusic', { loop: true, volume: 0.5 });
-      });
-    }
+    // Load sound effects and background music
+    loadSounds(this);
+    playBackgroundMusic(this);
 
     this.physics.add.overlap(this.player, this.door, () => {
       if (this.isGameOver) {
@@ -178,7 +166,7 @@ export class MainScene extends Phaser.Scene {
       this.buildRoom();
       
       // Play power-up sound when exiting room
-      this.sound.play('powerUp');
+      playPowerUpSound(this);
     });
 
     // Player-enemy overlap will be set up in setupEnemyCollisions()
@@ -297,7 +285,7 @@ export class MainScene extends Phaser.Scene {
         // Note: You'll need this.physics.world.on('worldbounds', ...) to actually kill it
 
         // Play shoot sound
-        this.sound.play('shoot');
+        playShootSound(this);
     }
 }
 
@@ -343,7 +331,7 @@ export class MainScene extends Phaser.Scene {
       this.addScore(GameConfig.SCORE_ENEMY);
       
       // Play hit sound
-      this.sound.play('hit');
+      playHitSound(this);
     });
 
     // Overlap with player (game over)
@@ -360,7 +348,7 @@ export class MainScene extends Phaser.Scene {
       }).setOrigin(0.5);
       
       // Play game over sound
-      this.sound.play('boom');
+      playBoomSound(this);
     });
   }
 
@@ -374,7 +362,7 @@ export class MainScene extends Phaser.Scene {
       }
       
       // Play pickup sound
-      this.sound.play('pickup');
+      playPickupSound(this);
     });
   }
 
