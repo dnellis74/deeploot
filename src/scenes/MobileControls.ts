@@ -1,12 +1,13 @@
 import Phaser from "phaser";
 import { GameConfig } from "../config/gameConfig";
+import type { VirtualJoystickInstance, PhaserPluginsWithJoystick } from "../types/joystick";
 
 // Interface for scenes that support mobile controls
 export interface IGameScene extends Phaser.Scene {
   isGameOver: boolean;
   nextFire: number;
   arrows: Phaser.Physics.Arcade.Group;
-  joystick?: any;
+  joystick?: VirtualJoystickInstance;
   joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   shootArrow(): void;
 }
@@ -49,7 +50,8 @@ export class MobileControls {
   }
 
   setupJoystick(height: number): void {
-    const joystickPlugin = this.scene.plugins.get('rexvirtualjoystickplugin') as any;
+    const plugins = this.scene.plugins as PhaserPluginsWithJoystick;
+    const joystickPlugin = plugins.get('rexvirtualjoystickplugin');
 
     if (joystickPlugin) {
       // Bottom safe area offset for iPhone 16: ~34 points

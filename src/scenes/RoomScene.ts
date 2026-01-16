@@ -20,6 +20,7 @@ import {
 } from "../config/sounds";
 import { DebugFlags } from "../config/debug";
 import dungeonWallImageUrl from "../assets/image/dungeon_brick_wall__8_bit__by_trarian_dez45u1-375w-2x.jpg";
+import type { VirtualJoystickInstance } from "../types/joystick";
 
 export class RoomScene extends Phaser.Scene {
 
@@ -29,13 +30,13 @@ export class RoomScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Triangle;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private fireKey!: Phaser.Input.Keyboard.Key;
-  joystick!: any; // Rex Virtual Joystick (public for MobileControls access)
+  joystick!: VirtualJoystickInstance; // Rex Virtual Joystick (public for MobileControls access)
   private isMobile: boolean = false;
   joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Public for MobileControls access
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   arrows!: Phaser.Physics.Arcade.Group; // Public for MobileControls access
   private door!: Phaser.GameObjects.Rectangle;
-  private treasure!: Phaser.GameObjects.Arc;
+  private treasure: Phaser.GameObjects.Arc | null = null;
   private enemies!: Phaser.Physics.Arcade.Group;
   private purpleEnemies = new Set<Phaser.GameObjects.Arc>(); // Track purple enemies that hunt the player
   private scoreText!: Phaser.GameObjects.Text;
@@ -144,7 +145,7 @@ export class RoomScene extends Phaser.Scene {
     
     this.walls = this.physics.add.staticGroup();
     this.enemies = this.physics.add.group();
-    this.arrows = this.arrows = this.physics.add.group({
+    this.arrows = this.physics.add.group({
       classType: Phaser.GameObjects.Rectangle, // Tells the group to create Rectangles
       createCallback: (obj) => {
           const rect = obj as Phaser.GameObjects.Rectangle;
@@ -425,12 +426,15 @@ export class RoomScene extends Phaser.Scene {
   }
 
   private setupTreasureCollisions() {
+    if (!this.treasure) {
+      return; // No treasure to set up collisions for
+    }
     this.physics.add.overlap(this.player, this.treasure, () => {
       this.addScore(GameConfig.SCORE_TREASURE);
       // Destroy treasure when collected (new treasure spawns only at start of new room)
       if (this.treasure) {
         this.treasure.destroy();
-        this.treasure = null as any;
+        this.treasure = null;
       }
       
       // Play pickup sound
@@ -485,6 +489,10 @@ export class RoomScene extends Phaser.Scene {
     const playerX = width / 2;
     // Player spawn: bottom of room minus offset (reuse bottomWallY from above)
     const playerY = bottomWallY - Positions.PLAYER_OFFSET_Y;
+    // placeTreasure() always creates a treasure, so it should not be null here
+    if (!this.treasure) {
+      throw new Error('Treasure was not created in placeTreasure()');
+    }
     const treasureX = this.treasure.x;
     const treasureY = this.treasure.y;
     const wallX = (playerX + treasureX) / 2;

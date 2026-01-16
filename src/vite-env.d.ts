@@ -48,11 +48,13 @@ declare module '*.svg' {
 }
 
 // Rex Plugin declarations
+import type { VirtualJoystickPlugin } from './types/joystick';
+
 declare global {
   interface Window {
     RexPlugins?: {
       plugins?: {
-        virtualjoystickplugin?: any;
+        virtualjoystickplugin?: VirtualJoystickPlugin;
       };
     };
   }
