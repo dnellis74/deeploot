@@ -1,9 +1,18 @@
 import Phaser from "phaser";
-import { MainScene } from "./MainScene";
 import { GameConfig } from "../config/gameConfig";
 
+// Interface for scenes that support mobile controls
+export interface IGameScene extends Phaser.Scene {
+  isGameOver: boolean;
+  nextFire: number;
+  arrows: Phaser.Physics.Arcade.Group;
+  joystick?: any;
+  joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  shootArrow(): void;
+}
+
 export class MobileControls {
-  constructor(private scene: MainScene) {}
+  constructor(private scene: IGameScene) {}
 
   loadAndSetup(): void {
     try {

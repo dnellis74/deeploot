@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { MainScene } from "./scenes/MainScene";
+import { RoomScene } from "./scenes/RoomScene";
 
 // Expose Phaser globally for the Rex plugin
 (window as any).Phaser = Phaser;
@@ -39,7 +40,7 @@ function initGame() {
         }
       ]
     } : undefined,
-    scene: [MainScene]
+    scene: [MainScene, RoomScene]
   };
 
   new Phaser.Game(config);
