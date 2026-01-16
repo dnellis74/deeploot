@@ -18,6 +18,7 @@ import {
   playPickupSound,
   playPowerUpSound,
 } from "../config/sounds";
+import dungeonWallImageUrl from "../assets/image/dungeon_brick_wall__8_bit__by_trarian_dez45u1-375w-2x.jpg";
 
 export class MainScene extends Phaser.Scene {
 
@@ -47,6 +48,11 @@ export class MainScene extends Phaser.Scene {
     super("main");
   }
 
+  preload() {
+    // Load the dungeon wall background image
+    this.load.image('dungeonWall', dungeonWallImageUrl);
+  }
+
   create() {
     // Check if device is mobile (has touch support)
     this.isMobile = this.sys.game.device.input.touch;
@@ -64,6 +70,32 @@ export class MainScene extends Phaser.Scene {
 
     const { width, height } = this.scale;
 
+    // Create tiled dungeon wall background covering the entire game area
+    this.add.tileSprite(0, 0, width, height, 'dungeonWall')
+      .setOrigin(0, 0)
+      .setDepth(-2); // Behind everything, including the playfield
+
+    // Calculate playfield dimensions (room area inside walls)
+    const wallThickness = Sizes.WALL_THICKNESS;
+    const topWallY = Positions.ROOM_TOP_OFFSET + wallThickness / 2;
+    const roomHeight = width; // Square room
+    const bottomWallY = topWallY + roomHeight;
+    
+    // Playfield is the area inside the walls
+    const playfieldX = wallThickness;
+    const playfieldY = topWallY + wallThickness / 2;
+    const playfieldWidth = width - 2 * wallThickness;
+    const playfieldHeight = roomHeight - wallThickness;
+    
+    // Create black background for the playfield (on top of the wall background)
+    this.add.rectangle(
+      playfieldX + playfieldWidth / 2,
+      playfieldY + playfieldHeight / 2,
+      playfieldWidth,
+      playfieldHeight,
+      0x000000
+    ).setDepth(-1); // Behind game elements but on top of wall background
+
     this.add.text(width / 2, Positions.TITLE_Y, "Venture Arcade", {
       fontSize: Sizes.TITLE_FONT,
       color: Colors.TEXT_PRIMARY
@@ -79,8 +111,6 @@ export class MainScene extends Phaser.Scene {
     // Create player as a triangle (arrow pointing up initially)
     const playerX = width / 2;
     // Player spawn: bottom of room minus offset
-    const topWallY = Positions.ROOM_TOP_OFFSET + Sizes.WALL_THICKNESS / 2;
-    const bottomWallY = topWallY + width; // Square room
     const playerY = bottomWallY - Positions.PLAYER_OFFSET_Y;
     this.player = this.add.triangle(
       playerX,
@@ -113,13 +143,10 @@ export class MainScene extends Phaser.Scene {
   });
 
     // Create door once - it stays stationary on the wall
-    const wallThickness = Sizes.WALL_THICKNESS;
     const doorWidth = Sizes.DOOR_WIDTH;
     const doorX = width / 2;
     // Door position will be set in buildRoom, use temporary position here
-    const doorTopWallY = Positions.ROOM_TOP_OFFSET + wallThickness / 2;
-    const roomHeight = width; // Square room
-    const doorY = doorTopWallY + roomHeight;
+    const doorY = bottomWallY;
     this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, Colors.DOOR);
     this.physics.add.existing(this.door, true);
 
