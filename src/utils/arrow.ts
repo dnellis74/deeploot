@@ -15,6 +15,7 @@ import {
   DirectionAngles,
 } from "../config/gameConfig";
 import { playShootSound } from "../config/sounds";
+import { DebugFlags } from "../config/debug";
 
 /**
  * Interface for scenes that use ArrowManager
@@ -50,6 +51,9 @@ export class ArrowManager {
         const arrow = event.body.gameObject as Phaser.GameObjects.Rectangle;
         // Verify it's actually an arrow from our group
         if (this.arrows.contains(arrow)) {
+          if (DebugFlags.debugLog) {
+            console.log(`Arrow destroyed: Hit world bounds at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+          }
           arrow.destroy();
         }
       }
@@ -66,6 +70,9 @@ export class ArrowManager {
         const rect = obj as Phaser.GameObjects.Rectangle;
         rect.setSize(Sizes.ARROW_WIDTH, Sizes.ARROW_HEIGHT);
         rect.setFillStyle(Colors.ARROW);
+        // Explicitly set physics body size to match visual size
+        const body = this.getArrowBody(rect);
+        body.setSize(Sizes.ARROW_WIDTH, Sizes.ARROW_HEIGHT);
       }
     });
   }
@@ -113,8 +120,18 @@ export class ArrowManager {
     const angle = DirectionAngles[direction];
     const angleRadians = Phaser.Math.DegToRad(angle + GameConfig.ANGLE_OFFSET);
 
+    // Calculate offset to spawn arrow ahead of player to avoid immediate wall collisions
+    // Offset by half player size (max 16/2 = 8) plus arrow length (12) plus a small buffer (4)
+    const spawnOffset = Math.max(Sizes.PLAYER_WIDTH, Sizes.PLAYER_HEIGHT) / 2 + Sizes.ARROW_HEIGHT / 2 + 4;
+    const arrowStartX = playerX + Math.cos(angleRadians) * spawnOffset;
+    const arrowStartY = playerY + Math.sin(angleRadians) * spawnOffset;
+
+    if (DebugFlags.debugLog) {
+      console.log(`Arrow spawned: Player at (${playerX.toFixed(1)}, ${playerY.toFixed(1)}), Arrow at (${arrowStartX.toFixed(1)}, ${arrowStartY.toFixed(1)}), Direction: ${direction}`);
+    }
+
     // Get/Create arrow from the Physics Group
-    const arrow = this.arrows.get(playerX, playerY) as Phaser.GameObjects.Rectangle;
+    const arrow = this.arrows.get(arrowStartX, arrowStartY) as Phaser.GameObjects.Rectangle;
 
     if (arrow) {
       arrow.setActive(true).setVisible(true);
@@ -122,8 +139,9 @@ export class ArrowManager {
       // Set rotation
       arrow.setRotation(angleRadians);
       
-      // Set velocity
+      // Set velocity and ensure physics body size matches visual size
       const body = this.getArrowBody(arrow);
+      body.setSize(Sizes.ARROW_WIDTH, Sizes.ARROW_HEIGHT);
       body.setVelocity(
         Math.cos(angleRadians) * arrowSpeed,
         Math.sin(angleRadians) * arrowSpeed
@@ -148,6 +166,9 @@ export class ArrowManager {
    */
   public setupWallCollisions(walls: Phaser.Physics.Arcade.StaticGroup): void {
     this.scene.physics.add.collider(this.arrows, walls, (arrow) => {
+      if (DebugFlags.debugLog) {
+        console.log(`Arrow destroyed: Collided with wall at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+      }
       arrow.destroy();
     });
   }
@@ -168,11 +189,17 @@ export class ArrowManager {
       
       // Purple enemies are invulnerable to arrows - just destroy the arrow
       if (purpleEnemies.has(enemyCircle)) {
+        if (DebugFlags.debugLog) {
+          console.log(`Arrow destroyed: Hit invulnerable purple enemy at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+        }
         arrow.destroy();
         return;
       }
       
       // Destroy the arrow
+      if (DebugFlags.debugLog) {
+        console.log(`Arrow destroyed: Hit enemy at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
+      }
       arrow.destroy();
       
       // Call the hit callback
