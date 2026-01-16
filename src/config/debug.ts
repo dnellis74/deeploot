@@ -11,4 +11,8 @@ export const DebugFlags = {
    * When true, mutes background music/pads
    */
   mutePads: false,
+  /**
+   * When true, logs debug information (e.g., level completion times)
+   */
+  debugLog: false,
 } as const;

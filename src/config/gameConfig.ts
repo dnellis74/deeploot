@@ -13,6 +13,7 @@ export const Colors = {
   DOOR: 0x8B4513,
   ENEMY: 0x22c55e,
   ENEMY_HIT: 0xef4444,
+  ENEMY_PURPLE: 0xa855f7, // Purple enemy that hunts the player
   TREASURE: 0xfacc15,
   ARROW: 0xfacc15,
   WALL: 0x1f2937,

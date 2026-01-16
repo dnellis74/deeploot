@@ -18,6 +18,7 @@ import {
   playPickupSound,
   playPowerUpSound,
 } from "../config/sounds";
+import { DebugFlags } from "../config/debug";
 import dungeonWallImageUrl from "../assets/image/dungeon_brick_wall__8_bit__by_trarian_dez45u1-375w-2x.jpg";
 
 export class MainScene extends Phaser.Scene {
@@ -36,6 +37,7 @@ export class MainScene extends Phaser.Scene {
   private door!: Phaser.GameObjects.Rectangle;
   private treasure!: Phaser.GameObjects.Arc;
   private enemies!: Phaser.Physics.Arcade.Group;
+  private purpleEnemies = new Set<Phaser.GameObjects.Arc>(); // Track purple enemies that hunt the player
   private scoreText!: Phaser.GameObjects.Text;
   private roomText!: Phaser.GameObjects.Text;
   private score = 0;
@@ -43,6 +45,8 @@ export class MainScene extends Phaser.Scene {
   isGameOver = false; // Public for MobileControls access
   private lastDirection = 0; // 0-7 representing 8 directions
   nextFire = 0; // Fire rate limiting (public for MobileControls access)
+  private roomStartTime = 0; // Timestamp when the current room started
+  private hasSpawnedExtraEnemy = false; // Track if extra enemy has been spawned for current room
 
   constructor() {
     super("main");
@@ -177,6 +181,14 @@ export class MainScene extends Phaser.Scene {
       loop: true
     });
 
+    // Set up periodic check for new enemy spawns (every second)
+    this.time.addEvent({
+      delay: 1000, // Check every second
+      callback: this.checkEnemySpawn,
+      callbackScope: this,
+      loop: true
+    });
+
     // Set up treasure collisions (will be re-established after each spawn)
     this.setupTreasureCollisions();
 
@@ -188,6 +200,13 @@ export class MainScene extends Phaser.Scene {
       if (this.isGameOver) {
         return;
       }
+      
+      // Log level completion time if debug logging is enabled
+      if (DebugFlags.debugLog && this.roomStartTime > 0) {
+        const elapsedSeconds = (this.time.now - this.roomStartTime) / 1000;
+        console.log(`Room ${this.roomIndex} completed in ${elapsedSeconds.toFixed(2)} seconds`);
+      }
+      
       this.roomIndex += 1;
       this.roomText.setText(`Room: ${this.roomIndex}`);
       this.buildRoom();
@@ -244,6 +263,9 @@ export class MainScene extends Phaser.Scene {
     }
 
     playerBody.setVelocity(velocityX, velocityY);
+
+    // Update purple enemies to move toward player
+    this.updatePurpleEnemies();
 
     // Clean up arrows that go off screen
     this.cleanupArrows();
@@ -347,14 +369,22 @@ export class MainScene extends Phaser.Scene {
     
     // Overlap with arrows
     this.physics.add.overlap(this.arrows, this.enemies, (arrow, enemy) => {
+      const enemyCircle = enemy as Phaser.GameObjects.Arc;
+      
+      // Purple enemies are invulnerable to arrows - just destroy the arrow
+      if (this.purpleEnemies.has(enemyCircle)) {
+        arrow.destroy();
+        return;
+      }
+      
       // Destroy the projectile (arrow), not the enemy
       arrow.destroy();
       
       // Turn enemy red, stop moving, but don't destroy
-      const enemyCircle = enemy as Phaser.GameObjects.Arc;
       enemyCircle.setFillStyle(Colors.ENEMY_HIT);
       const enemyBody = this.getEnemyBody(enemyCircle);
       enemyBody.setVelocity(0, 0); // Stop movement
+      
       this.addScore(GameConfig.SCORE_ENEMY);
       
       // Play hit sound
@@ -402,9 +432,15 @@ export class MainScene extends Phaser.Scene {
     const wallThickness = Sizes.WALL_THICKNESS;
     const doorWidth = Sizes.DOOR_WIDTH;
 
+    // Start timer for this room
+    this.roomStartTime = this.time.now;
+    // Reset extra enemy spawn flag for new room
+    this.hasSpawnedExtraEnemy = false;
+
     this.walls.clear(true, true);
     this.arrows.clear(true, true);
     this.enemies.clear(true, true);
+    this.purpleEnemies.clear(); // Clear purple enemy tracking
     this.treasure?.destroy();
 
     // Calculate room dimensions to be roughly square
@@ -495,6 +531,62 @@ export class MainScene extends Phaser.Scene {
     enemyBody.setCollideWorldBounds(true);
   }
 
+  private spawnPurpleEnemy() {
+    const { width } = this.scale;
+    const wallThickness = Sizes.WALL_THICKNESS;
+    const topWallY = Positions.ROOM_TOP_OFFSET + wallThickness / 2;
+    
+    // Spawn at the top of the room, centered horizontally
+    const x = width / 2;
+    const y = topWallY + wallThickness / 2 + Sizes.ENEMY_RADIUS + 10; // Just below top wall
+    
+    const enemy = this.add.circle(x, y, Sizes.ENEMY_RADIUS, Colors.ENEMY_PURPLE);
+    this.enemies.add(enemy);
+    this.purpleEnemies.add(enemy); // Track as purple enemy
+    this.physics.add.existing(enemy);
+    const enemyBody = this.getEnemyBody(enemy);
+    enemyBody.setBounce(1, 1);
+    enemyBody.setCollideWorldBounds(true);
+    // Initial velocity will be set in updatePurpleEnemies
+  }
+
+  private updatePurpleEnemies() {
+    if (this.purpleEnemies.size === 0 || this.isGameOver) {
+      return;
+    }
+
+    const playerX = this.player.x;
+    const playerY = this.player.y;
+    // Purple enemy is 5% faster than the player
+    const speed = Speeds.PLAYER * 1.05;
+
+    // Update each purple enemy to move toward player
+    this.purpleEnemies.forEach((enemy) => {
+      if (!enemy.active) {
+        // Remove destroyed enemies from tracking
+        this.purpleEnemies.delete(enemy);
+        return;
+      }
+
+      const enemyBody = this.getEnemyBody(enemy);
+      if (!enemyBody) {
+        return;
+      }
+
+      // Calculate direction to player
+      const dx = playerX - enemy.x;
+      const dy = playerY - enemy.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance > 0) {
+        // Normalize and set velocity toward player
+        const velocityX = (dx / distance) * speed;
+        const velocityY = (dy / distance) * speed;
+        enemyBody.setVelocity(velocityX, velocityY);
+      }
+    });
+  }
+
   private changeEnemyDirections() {
     this.forEachActiveEnemy((enemy, enemyBody) => {
       // Only change direction for active (green) enemies, not hit (red) ones
@@ -502,6 +594,44 @@ export class MainScene extends Phaser.Scene {
         this.setRandomEnemyVelocity(enemyBody);
       }
     });
+  }
+
+  private checkEnemySpawn() {
+    // Don't spawn if game is over, room hasn't started, or already spawned extra enemy
+    if (this.isGameOver || this.roomStartTime === 0 || this.hasSpawnedExtraEnemy) {
+      return;
+    }
+
+    // Calculate elapsed time in seconds
+    const elapsedSeconds = (this.time.now - this.roomStartTime) / 1000;
+
+    // Spawn chance starts at 5 seconds with 5% chance
+    if (elapsedSeconds < 5) {
+      return;
+    }
+
+    // Calculate probability: starting at 5% at 5 seconds, increasing by 5% each second
+    // At 5 seconds: 5% chance
+    // At 6 seconds: 10% chance
+    // At 7 seconds: 15% chance
+    // At 24 seconds: 100% chance (capped)
+    const probability = Math.min((elapsedSeconds - 4) * 5, 100);
+
+    // Roll random chance (0-100)
+    const roll = Phaser.Math.Between(0, 100);
+
+    if (roll < probability) {
+      // Mark that we've spawned an extra enemy for this room
+      this.hasSpawnedExtraEnemy = true;
+      
+      // Spawn the purple enemy
+      this.spawnPurpleEnemy();
+      
+      // Log debug message when new enemy appears
+      if (DebugFlags.debugLog) {
+        console.log(`New enemy spawn triggered! Elapsed: ${elapsedSeconds.toFixed(2)}s, Probability: ${probability.toFixed(1)}%, Roll: ${roll}`);
+      }
+    }
   }
 
   // ============================================================================
