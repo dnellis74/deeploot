@@ -15,4 +15,8 @@ export const DebugFlags = {
    * When true, logs debug information (e.g., level completion times)
    */
   debugLog: false,
+  /**
+   * When true, shows physics debug overlay (collision boundaries and physics bodies)
+   */
+  physicsDebug: false,
 } as const;

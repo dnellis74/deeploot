@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { MainScene } from "./scenes/MainScene";
 import { RoomScene } from "./scenes/RoomScene";
+import { DebugFlags } from "./config/debug";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -15,7 +16,7 @@ const config: Phaser.Types.Core.GameConfig = {
         y: 0,
         x: 0
       },
-      debug: false
+      debug: DebugFlags.physicsDebug
     }
   },
   scale: {
