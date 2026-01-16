@@ -6,6 +6,7 @@ import pickupSoundUrl from "../assets/sounds/Pickup1.wav";
 import powerUpSoundUrl from "../assets/sounds/PowerUp2.wav";
 import backgroundMusicUrl from "../assets/sounds/caverns.ogg";
 import { MobileControls } from "./MobileControls";
+import { DebugFlags } from "../config/debug";
 
 export class MainScene extends Phaser.Scene {
   // ============================================================================
@@ -123,11 +124,6 @@ export class MainScene extends Phaser.Scene {
   private lastDirection = 0; // 0-7 representing 8 directions
   nextFire = 0; // Fire rate limiting (public for MobileControls access)
 
-  // ---
-  // Debug flags
-  // ---
-  private static debugMutePads: boolean = true
-
   constructor() {
     super("main");
   }
@@ -244,15 +240,17 @@ export class MainScene extends Phaser.Scene {
     this.load.audio('boom', boomSoundUrl);
     this.load.audio('pickup', pickupSoundUrl);
     this.load.audio('powerUp', powerUpSoundUrl);
-    if (!MainScene.debugMutePads) {
+    if (!DebugFlags.mutePads) {
       this.load.audio('backgroundMusic', backgroundMusicUrl);
     }
     this.load.start();
     
-    // Play background music when loaded
-    this.load.once('complete', () => {
-      this.sound.play('backgroundMusic', { loop: true, volume: 0.5 });
-    });
+    // Play background music when loaded (only if not muted)
+    if (!DebugFlags.mutePads) {
+      this.load.once('complete', () => {
+        this.sound.play('backgroundMusic', { loop: true, volume: 0.5 });
+      });
+    }
 
     this.physics.add.overlap(this.player, this.door, () => {
       if (this.isGameOver) {
@@ -508,7 +506,8 @@ export class MainScene extends Phaser.Scene {
     const treasureY = this.treasure.y;
     const wallX = (playerX + treasureX) / 2;
     const wallY = (playerY + treasureY) / 2;
-    const wallHeight = height * MainScene.CONFIG_WALL_HEIGHT_RATIO;
+    // Wall height should be based on room height, not screen height, and never exceed 50%
+    const wallHeight = Math.min(roomHeight * MainScene.CONFIG_WALL_HEIGHT_RATIO, roomHeight * 0.5);
     this.createWall(wallX, wallY, wallThickness, wallHeight);
     
     for (let i = 0; i < MainScene.CONFIG_ENEMY_COUNT; i++) {
