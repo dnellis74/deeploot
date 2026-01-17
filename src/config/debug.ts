@@ -10,7 +10,7 @@ export const DebugFlags = {
   /**
    * When true, mutes background music/pads
    */
-  mutePads: true,
+  mutePads: false,
   /**
    * When true, logs debug information (e.g., level completion times)
    */
@@ -18,5 +18,5 @@ export const DebugFlags = {
   /**
    * When true, shows physics debug overlay (collision boundaries and physics bodies)
    */
-  physicsDebug: true,
+  physicsDebug: false,
 } as const;
