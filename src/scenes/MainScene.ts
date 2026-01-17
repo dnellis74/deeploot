@@ -159,4 +159,27 @@ export class MainScene extends Phaser.Scene {
     }
     this.createStartButton();
   }
+
+  /**
+   * Cleanup method called when scene is shut down
+   * Removes all event listeners and clears references
+   */
+  shutdown() {
+    // Clean up high score texts
+    this.highScoreTexts.forEach(text => {
+      if (text) {
+        text.destroy();
+      }
+    });
+    this.highScoreTexts = [];
+
+    // Clean up start button
+    if (this.startButton) {
+      this.startButton.destroy();
+      this.startButton = undefined as any;
+    }
+
+    // Clean up keyboard listener (Phaser handles this automatically, but we can clear references)
+    this.spaceKey = undefined as any;
+  }
 }

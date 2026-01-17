@@ -15,7 +15,6 @@ import {
   DirectionAngles,
 } from "../config/gameConfig";
 import { playShootSound } from "../config/sounds";
-import { DebugFlags } from "../config/debug";
 
 /**
  * Interface for scenes that use ArrowManager
@@ -34,6 +33,9 @@ export class ArrowManager {
   private arrows: Phaser.Physics.Arcade.Group;
   private nextFire: number = 0;
   private scene: IArrowScene;
+  private worldBoundsHandler?: (event: any) => void;
+  private arrowWallCollider?: Phaser.Physics.Arcade.Collider;
+  private arrowEnemyOverlap?: Phaser.Physics.Arcade.Collider;
 
   constructor(scene: IArrowScene) {
     this.scene = scene;
@@ -45,19 +47,17 @@ export class ArrowManager {
    * Sets up world bounds event handler to automatically destroy arrows
    */
   private setupWorldBoundsHandler(): void {
-    this.scene.physics.world.on('worldbounds', (event: any) => {
+    this.worldBoundsHandler = (event: any) => {
       // Only handle arrows
       if (event.body && event.body.gameObject) {
         const arrow = event.body.gameObject as Phaser.GameObjects.Rectangle;
         // Verify it's actually an arrow from our group
         if (this.arrows.contains(arrow)) {
-          if (DebugFlags.debugLog) {
-            //console.log(`Arrow destroyed: Hit world bounds at (${arrow.x.toFixed(1)}, ${arrow.y.toFixed(1)})`);
-          }
           arrow.destroy();
         }
       }
-    });
+    };
+    this.scene.physics.world.on('worldbounds', this.worldBoundsHandler);
   }
 
   /**
@@ -123,10 +123,6 @@ export class ArrowManager {
     const arrowStartX = playerX + Math.cos(angleRadians) * spawnOffset;
     const arrowStartY = playerY + Math.sin(angleRadians) * spawnOffset;
 
-    if (DebugFlags.debugLog) {
-      //console.log(`Arrow spawned: Player at (${playerX.toFixed(1)}, ${playerY.toFixed(1)}), Arrow at (${arrowStartX.toFixed(1)}, ${arrowStartY.toFixed(1)}), Direction: ${direction}`);
-    }
-
     // Get/Create arrow from the Physics Group
     const arrow = this.arrows.get(arrowStartX, arrowStartY) as Phaser.GameObjects.Rectangle;
 
@@ -162,11 +158,8 @@ export class ArrowManager {
    * @param walls - Static group of walls
    */
   public setupWallCollisions(walls: Phaser.Physics.Arcade.StaticGroup): void {
-    this.scene.physics.add.collider(this.arrows, walls, (arrow) => {
+    this.arrowWallCollider = this.scene.physics.add.collider(this.arrows, walls, (arrow) => {
       const arrowRect = arrow as Phaser.GameObjects.Rectangle;
-      if (DebugFlags.debugLog) {
-        //console.log(`Arrow destroyed: Collided with wall at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
-      }
       arrowRect.destroy();
     });
   }
@@ -182,23 +175,17 @@ export class ArrowManager {
     purpleEnemies: Set<Phaser.GameObjects.Arc>,
     onEnemyHit: (enemy: Phaser.GameObjects.Arc) => void
   ): void {
-    this.scene.physics.add.overlap(this.arrows, enemies, (arrow, enemy) => {
+    this.arrowEnemyOverlap = this.scene.physics.add.overlap(this.arrows, enemies, (arrow, enemy) => {
       const arrowRect = arrow as Phaser.GameObjects.Rectangle;
       const enemyCircle = enemy as Phaser.GameObjects.Arc;
       
       // Purple enemies are invulnerable to arrows - just destroy the arrow
       if (purpleEnemies.has(enemyCircle)) {
-        if (DebugFlags.debugLog) {
-          //console.log(`Arrow destroyed: Hit invulnerable purple enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
-        }
         arrowRect.destroy();
         return;
       }
       
       // Destroy the arrow
-      if (DebugFlags.debugLog) {
-        //console.log(`Arrow destroyed: Hit enemy at (${arrowRect.x.toFixed(1)}, ${arrowRect.y.toFixed(1)})`);
-      }
       arrowRect.destroy();
       
       // Call the hit callback
@@ -218,5 +205,32 @@ export class ArrowManager {
    */
   private getArrowBody(arrow: Phaser.GameObjects.Rectangle): Phaser.Physics.Arcade.Body {
     return arrow.body as Phaser.Physics.Arcade.Body;
+  }
+
+  /**
+   * Destroys the ArrowManager and cleans up all resources
+   * Removes event listeners, colliders, overlaps, and clears arrows
+   */
+  public destroy(): void {
+    // Remove world bounds event listener
+    if (this.worldBoundsHandler) {
+      this.scene.physics.world.off('worldbounds', this.worldBoundsHandler);
+      this.worldBoundsHandler = undefined;
+    }
+    
+    // Remove arrow-wall collider
+    if (this.arrowWallCollider) {
+      this.arrowWallCollider.destroy();
+      this.arrowWallCollider = undefined;
+    }
+    
+    // Remove arrow-enemy overlap
+    if (this.arrowEnemyOverlap) {
+      this.arrowEnemyOverlap.destroy();
+      this.arrowEnemyOverlap = undefined;
+    }
+    
+    // Clear all arrows
+    this.clear();
   }
 }

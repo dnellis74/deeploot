@@ -48,6 +48,11 @@ export class RoomScene extends Phaser.Scene {
   private roomStartTime = 0; // Timestamp when the current room started
   private hasSpawnedExtraEnemy = false; // Track if extra enemy has been spawned for current room
   private gameOverTransitioned = false; // Track if we've already triggered the transition back to MainScene
+  // Cleanup references
+  private timerEvents: Phaser.Time.TimerEvent[] = []; // Store timer events for cleanup
+  private colliders: Phaser.Physics.Arcade.Collider[] = []; // Store colliders for cleanup
+  private overlaps: Phaser.Physics.Arcade.Collider[] = []; // Store overlaps for cleanup
+  private delayedCalls: Phaser.Time.TimerEvent[] = []; // Store delayed calls for cleanup
 
   constructor() {
     super("room");
@@ -173,27 +178,30 @@ export class RoomScene extends Phaser.Scene {
       color: Colors.TEXT_SECONDARY
     }).setDepth(GameConfig.UI_Z_DEPTH);
 
-    this.physics.add.collider(this.player, this.walls);
+    const playerWallCollider = this.physics.add.collider(this.player, this.walls);
+    this.colliders.push(playerWallCollider);
     this.arrowManager.setupWallCollisions(this.walls);
 
     // Set up enemy collisions (once for the group, works for all enemies)
     this.setupEnemyCollisions();
 
     // Set up periodic enemy direction changes
-    this.time.addEvent({
+    const directionChangeTimer = this.time.addEvent({
       delay: GameConfig.ENEMY_DIRECTION_CHANGE_DELAY,
       callback: this.changeEnemyDirections,
       callbackScope: this,
       loop: true
     });
+    this.timerEvents.push(directionChangeTimer);
 
     // Set up periodic check for new enemy spawns (every second)
-    this.time.addEvent({
+    const spawnCheckTimer = this.time.addEvent({
       delay: GameConfig.ENEMY_SPAWN_CHECK_DELAY,
       callback: this.checkEnemySpawn,
       callbackScope: this,
       loop: true
     });
+    this.timerEvents.push(spawnCheckTimer);
 
     // Note: Treasure collisions are set up in placeTreasure() which is called by buildRoom()
     // No need to call setupTreasureCollisions() here as buildRoom() already handles it
@@ -202,7 +210,7 @@ export class RoomScene extends Phaser.Scene {
     loadSounds(this);
     playBackgroundMusic(this);
 
-    this.physics.add.overlap(this.player, this.door, () => {
+    const doorOverlap = this.physics.add.overlap(this.player, this.door, () => {
       if (this.isGameOver) {
         return;
       }
@@ -220,6 +228,7 @@ export class RoomScene extends Phaser.Scene {
       // Play power-up sound when exiting room
       playPowerUpSound(this);
     });
+    this.overlaps.push(doorOverlap);
 
     // Player-enemy overlap will be set up in setupEnemyCollisions()
   }
@@ -229,10 +238,11 @@ export class RoomScene extends Phaser.Scene {
       // Handle game over transition after delay
       if (!this.gameOverTransitioned) {
         this.gameOverTransitioned = true;
-        this.time.delayedCall(GameConfig.GAME_OVER_TRANSITION_DELAY, () => {
+        const delayedCall = this.time.delayedCall(GameConfig.GAME_OVER_TRANSITION_DELAY, () => {
           // Transition back to MainScene with final score
           this.scene.start('main', { finalScore: this.score });
         });
+        this.delayedCalls.push(delayedCall);
       }
       return;
     }
@@ -329,7 +339,8 @@ export class RoomScene extends Phaser.Scene {
     const { width, height } = this.scale;
     
     // Collider with walls
-    this.physics.add.collider(this.enemies, this.walls);
+    const enemyWallCollider = this.physics.add.collider(this.enemies, this.walls);
+    this.colliders.push(enemyWallCollider);
     
     // Overlap with arrows
     this.arrowManager.setupEnemyCollisions(
@@ -349,7 +360,7 @@ export class RoomScene extends Phaser.Scene {
     );
 
     // Overlap with player (game over)
-    this.physics.add.overlap(this.player, this.enemies, () => {
+    const playerEnemyOverlap = this.physics.add.overlap(this.player, this.enemies, () => {
       if (this.isGameOver) {
         return;
       }
@@ -364,13 +375,14 @@ export class RoomScene extends Phaser.Scene {
       // Play game over sound
       playBoomSound(this);
     });
+    this.overlaps.push(playerEnemyOverlap);
   }
 
   private setupTreasureCollisions() {
     if (!this.treasure) {
       return; // No treasure to set up collisions for
     }
-    this.physics.add.overlap(this.player, this.treasure, () => {
+    const treasureOverlap = this.physics.add.overlap(this.player, this.treasure, () => {
       // Defensive null check - treasure might have been destroyed elsewhere
       if (!this.treasure) {
         return;
@@ -384,6 +396,7 @@ export class RoomScene extends Phaser.Scene {
       // Play pickup sound
       playPickupSound(this);
     });
+    this.overlaps.push(treasureOverlap);
   }
 
   // ============================================================================
@@ -576,7 +589,10 @@ export class RoomScene extends Phaser.Scene {
 
     // Calculate elapsed time in seconds
     const elapsedSeconds = (this.time.now - this.roomStartTime) / GameConfig.MILLISECONDS_PER_SECOND;
-    console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}`);
+
+    if (DebugFlags.debugLog) {
+      console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}`);
+    }
 
     // Spawn chance starts after configured time with base chance
     if (elapsedSeconds < GameConfig.ENEMY_SPAWN_START_TIME) {
@@ -591,8 +607,10 @@ export class RoomScene extends Phaser.Scene {
 
     // Roll random chance
     const roll = Phaser.Math.Between(GameConfig.ENEMY_SPAWN_ROLL_MIN, GameConfig.ENEMY_SPAWN_ROLL_MAX);
-    console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}s, Probability: ${probability.toFixed(1)}%, Roll: ${roll}`);
 
+    if (DebugFlags.debugLog) {
+      console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}s, Probability: ${probability.toFixed(1)}%, Roll: ${roll}`);
+    }
 
     if (roll < probability) {
       // Mark that we've spawned an extra enemy for this room
@@ -654,5 +672,62 @@ export class RoomScene extends Phaser.Scene {
   private addScore(points: number): void {
     this.score += points;
     this.scoreText.setText(`Score: ${this.score}`);
+  }
+
+  /**
+   * Cleanup method called when scene is shut down
+   * Removes all event listeners, timers, colliders, and physics bodies
+   */
+  shutdown() {
+    // Destroy all timer events
+    this.timerEvents.forEach(timer => {
+      if (timer && !timer.hasDispatched) {
+        timer.destroy();
+      }
+    });
+    this.timerEvents = [];
+
+    // Destroy all delayed calls
+    this.delayedCalls.forEach(call => {
+      if (call && !call.hasDispatched) {
+        call.destroy();
+      }
+    });
+    this.delayedCalls = [];
+
+    // Remove all colliders
+    this.colliders.forEach(collider => {
+      if (collider) {
+        collider.destroy();
+      }
+    });
+    this.colliders = [];
+
+    // Remove all overlaps
+    this.overlaps.forEach(overlap => {
+      if (overlap) {
+        overlap.destroy();
+      }
+    });
+    this.overlaps = [];
+
+    // Destroy arrow manager (cleans up its event listeners)
+    if (this.arrowManager) {
+      this.arrowManager.destroy();
+    }
+
+    // Clean up joystick if present (mobile controls)
+    if (this.joystick && typeof this.joystick.destroy === 'function') {
+      this.joystick.destroy();
+    }
+    this.joystick = undefined as any; // Reset to undefined but keep type compatibility
+    this.joystickCursors = undefined;
+
+    // Clean up keyboard listeners (Phaser handles this automatically, but we can clear references)
+    this.cursors = undefined;
+    this.fireKey = undefined;
+
+    // Clear enemy tracking sets
+    this.purpleEnemies.clear();
   }
 }
