@@ -12,15 +12,15 @@ import {
 import {
   loadSounds,
   playBackgroundMusic,
-  playHitSound,
-  playBoomSound,
-  playPickupSound,
   playPowerUpSound,
 } from "../config/sounds";
 import { DebugFlags } from "../config/debug";
 import dungeonWallImageUrl from "../assets/image/dungeon_brick_wall__8_bit__by_trarian_dez45u1-375w-2x.jpg";
 import type { VirtualJoystickInstance } from "../types/joystick";
 import { ArrowManager } from "../utils/arrow";
+import { EnemyManager } from "../utils/enemyManager";
+import { RoomBuilder } from "../utils/roomBuilder";
+import { CollisionManager } from "../utils/collisionManager";
 
 export class RoomScene extends Phaser.Scene {
 
@@ -33,25 +33,19 @@ export class RoomScene extends Phaser.Scene {
   public joystick!: VirtualJoystickInstance; // Rex Virtual Joystick (public for MobileControls access)
   private isMobile: boolean = false;
   public joystickCursors?: Phaser.Types.Input.Keyboard.CursorKeys; // Public for MobileControls access
-  private walls!: Phaser.Physics.Arcade.StaticGroup;
   public arrowManager!: ArrowManager; // Arrow management (public for MobileControls access)
-  private door!: Phaser.GameObjects.Rectangle;
-  private treasure: Phaser.GameObjects.Arc | null = null;
-  private enemies!: Phaser.Physics.Arcade.Group;
-  private purpleEnemies = new Set<Phaser.GameObjects.Arc>(); // Track purple enemies that hunt the player
+  private enemyManager!: EnemyManager; // Enemy management
+  private roomBuilder!: RoomBuilder; // Room building
+  private collisionManager!: CollisionManager; // Collision management
   private scoreText!: Phaser.GameObjects.Text;
   private roomText!: Phaser.GameObjects.Text;
   private score = 0;
   private roomIndex = 1;
   public isGameOver = false; // Public for MobileControls access
   private lastDirection = 0; // 0-7 representing 8 directions
-  private roomStartTime = 0; // Timestamp when the current room started
-  private hasSpawnedExtraEnemy = false; // Track if extra enemy has been spawned for current room
   private gameOverTransitioned = false; // Track if we've already triggered the transition back to MainScene
   // Cleanup references
   private timerEvents: Phaser.Time.TimerEvent[] = []; // Store timer events for cleanup
-  private colliders: Phaser.Physics.Arcade.Collider[] = []; // Store colliders for cleanup
-  private overlaps: Phaser.Physics.Arcade.Collider[] = []; // Store overlaps for cleanup
   private delayedCalls: Phaser.Time.TimerEvent[] = []; // Store delayed calls for cleanup
 
   constructor() {
@@ -155,18 +149,45 @@ export class RoomScene extends Phaser.Scene {
     this.updatePlayerVisual();
 
     
-    this.walls = this.physics.add.staticGroup();
-    this.enemies = this.physics.add.group();
+    // Initialize managers
     this.arrowManager = new ArrowManager(this);
+    this.enemyManager = new EnemyManager(this);
+    this.roomBuilder = new RoomBuilder(this);
+    this.collisionManager = new CollisionManager(this);
+
+    // Initialize player reference in managers that need it
+    this.enemyManager.init(this.player);
+
+    // Initialize collision manager with all required references
+    this.collisionManager.init(
+      this.player,
+      this.arrowManager,
+      this.enemyManager,
+      this.roomBuilder
+    );
+
+    // Set up collision callbacks
+    this.collisionManager.setGameOverCallback(() => {
+      if (this.isGameOver) {
+        return;
+      }
+      this.isGameOver = true;
+      this.enemyManager.setGameOver(true);
+    });
+
+    this.collisionManager.setScoreChangeCallback((points: number) => {
+      this.addScore(points);
+    });
+
+    // Set up treasure collection callback
+    this.roomBuilder.setTreasureCollectedCallback(() => {
+      // Treasure collection is handled in collision manager
+    });
 
     // Create door once - it stays stationary on the wall
-    const doorWidth = Sizes.DOOR_WIDTH;
-    const doorX = width / 2;
-    // Door position will be set in buildRoom, use temporary position here
-    const doorY = bottomWallY;
-    this.door = this.add.rectangle(doorX, doorY, doorWidth, wallThickness, Colors.DOOR);
-    this.physics.add.existing(this.door, true);
+    this.roomBuilder.initDoor();
 
+    // Build the initial room
     this.buildRoom();
 
     this.scoreText = this.add.text(Positions.UI_X, Positions.UI_SCORE_Y, "Score: 0", {
@@ -178,47 +199,13 @@ export class RoomScene extends Phaser.Scene {
       color: Colors.TEXT_SECONDARY
     }).setDepth(GameConfig.UI_Z_DEPTH);
 
-    const playerWallCollider = this.physics.add.collider(this.player, this.walls);
-    this.colliders.push(playerWallCollider);
-    this.arrowManager.setupWallCollisions(this.walls);
+    // Set up all collisions
+    this.collisionManager.setupCollisions();
 
-    // Set up enemy collisions (once for the group, works for all enemies)
-    this.setupEnemyCollisions();
-
-    // Set up periodic enemy direction changes
-    const directionChangeTimer = this.time.addEvent({
-      delay: GameConfig.ENEMY_DIRECTION_CHANGE_DELAY,
-      callback: this.changeEnemyDirections,
-      callbackScope: this,
-      loop: true
-    });
-    this.timerEvents.push(directionChangeTimer);
-
-    // Set up periodic check for new enemy spawns (every second)
-    const spawnCheckTimer = this.time.addEvent({
-      delay: GameConfig.ENEMY_SPAWN_CHECK_DELAY,
-      callback: this.checkEnemySpawn,
-      callbackScope: this,
-      loop: true
-    });
-    this.timerEvents.push(spawnCheckTimer);
-
-    // Note: Treasure collisions are set up in placeTreasure() which is called by buildRoom()
-    // No need to call setupTreasureCollisions() here as buildRoom() already handles it
-
-    // Load sound effects and background music
-    loadSounds(this);
-    playBackgroundMusic(this);
-
-    const doorOverlap = this.physics.add.overlap(this.player, this.door, () => {
+    // Set up door overlap
+    this.collisionManager.setupDoorOverlap(() => {
       if (this.isGameOver) {
         return;
-      }
-      
-      // Log level completion time if debug logging is enabled
-      if (DebugFlags.debugLog && this.roomStartTime > 0) {
-        const elapsedSeconds = (this.time.now - this.roomStartTime) / GameConfig.MILLISECONDS_PER_SECOND;
-        console.log(`Room ${this.roomIndex} completed in ${elapsedSeconds.toFixed(2)} seconds`);
       }
       
       this.roomIndex += 1;
@@ -228,9 +215,28 @@ export class RoomScene extends Phaser.Scene {
       // Play power-up sound when exiting room
       playPowerUpSound(this);
     });
-    this.overlaps.push(doorOverlap);
 
-    // Player-enemy overlap will be set up in setupEnemyCollisions()
+    // Set up periodic enemy direction changes
+    const directionChangeTimer = this.time.addEvent({
+      delay: GameConfig.ENEMY_DIRECTION_CHANGE_DELAY,
+      callback: () => this.enemyManager.changeEnemyDirections(),
+      callbackScope: this,
+      loop: true
+    });
+    this.timerEvents.push(directionChangeTimer);
+
+    // Set up periodic check for new enemy spawns (every second)
+    const spawnCheckTimer = this.time.addEvent({
+      delay: GameConfig.ENEMY_SPAWN_CHECK_DELAY,
+      callback: () => this.enemyManager.checkEnemySpawn(),
+      callbackScope: this,
+      loop: true
+    });
+    this.timerEvents.push(spawnCheckTimer);
+
+    // Load sound effects and background music
+    loadSounds(this);
+    playBackgroundMusic(this);
   }
 
   update() {
@@ -288,7 +294,7 @@ export class RoomScene extends Phaser.Scene {
     playerBody.setVelocity(velocityX, velocityY);
 
     // Update purple enemies to move toward player
-    this.updatePurpleEnemies();
+    this.enemyManager.updatePurpleEnemies();
   }
 
 
@@ -332,139 +338,36 @@ export class RoomScene extends Phaser.Scene {
 
 
   // ============================================================================
-  // Collision Handlers
-  // ============================================================================
-
-  private setupEnemyCollisions() {
-    const { width, height } = this.scale;
-    
-    // Collider with walls
-    const enemyWallCollider = this.physics.add.collider(this.enemies, this.walls);
-    this.colliders.push(enemyWallCollider);
-    
-    // Overlap with arrows
-    this.arrowManager.setupEnemyCollisions(
-      this.enemies,
-      this.purpleEnemies,
-      (enemy) => {
-        // Turn enemy red, stop moving, but don't destroy
-        enemy.setFillStyle(Colors.ENEMY_HIT);
-        const enemyBody = this.getEnemyBody(enemy);
-        enemyBody.setVelocity(0, 0); // Stop movement
-        
-        this.addScore(GameConfig.SCORE_ENEMY);
-        
-        // Play hit sound
-        playHitSound(this);
-      }
-    );
-
-    // Overlap with player (game over)
-    const playerEnemyOverlap = this.physics.add.overlap(this.player, this.enemies, () => {
-      if (this.isGameOver) {
-        return;
-      }
-      this.isGameOver = true;
-      this.physics.pause();
-      this.player.setFillStyle(Colors.GAME_OVER);
-      this.add.text(width / 2, height / 2, "Game Over", {
-        fontSize: Sizes.GAME_OVER_FONT,
-        color: Colors.TEXT_GAME_OVER
-      }).setOrigin(0.5);
-      
-      // Play game over sound
-      playBoomSound(this);
-    });
-    this.overlaps.push(playerEnemyOverlap);
-  }
-
-  private setupTreasureCollisions() {
-    if (!this.treasure) {
-      return; // No treasure to set up collisions for
-    }
-    const treasureOverlap = this.physics.add.overlap(this.player, this.treasure, () => {
-      // Defensive null check - treasure might have been destroyed elsewhere
-      if (!this.treasure) {
-        return;
-      }
-      
-      this.addScore(GameConfig.SCORE_TREASURE);
-      // Destroy treasure when collected (new treasure spawns only at start of new room)
-      this.treasure.destroy();
-      this.treasure = null;
-      
-      // Play pickup sound
-      playPickupSound(this);
-    });
-    this.overlaps.push(treasureOverlap);
-  }
-
-  // ============================================================================
   // Game Logic - Room Building & Entity Management
   // ============================================================================
 
   private buildRoom() {
-    const { width, height } = this.scale;
+    const { width } = this.scale;
     const wallThickness = Sizes.WALL_THICKNESS;
-    const doorWidth = Sizes.DOOR_WIDTH;
 
-    // Start timer for this room
-    this.roomStartTime = this.time.now;
-    // Reset extra enemy spawn flag for new room
-    this.hasSpawnedExtraEnemy = false;
-
-    this.walls.clear(true, true);
+    // Clear existing room and entities
     this.arrowManager.clear();
-    this.enemies.clear(true, true);
-    this.purpleEnemies.clear(); // Clear purple enemy tracking
-    this.treasure?.destroy();
+    this.enemyManager.clearEnemies();
 
-    // Calculate room dimensions to be roughly square
-    // Top wall center should be at ROOM_TOP_OFFSET + wallThickness/2
+    // Build new room
+    this.roomBuilder.buildRoom();
+
+    // Start new room with enemies
+    this.enemyManager.startRoom(GameConfig.ENEMY_COUNT);
+
+    // Reset player position
     const topWallY = Positions.ROOM_TOP_OFFSET + wallThickness / 2;
-    // Room height = width (for square), so bottom wall center = topWallY + width
-    const roomHeight = width; // Make room square (width = 393)
+    const roomHeight = width; // Make room square
     const bottomWallY = topWallY + roomHeight;
-    const doorX = width / 2;
-    const doorY = bottomWallY;
-    const doorHalfWidth = doorWidth / 2;
-
-    // Create top wall (full wall) - positioned below instruction text
-    this.createWall(width / 2, topWallY, width, wallThickness);
-    // Create bottom wall with door opening (door stays stationary)
-    const bottomWallSegmentWidth = width / 2 - doorHalfWidth;
-    this.createWall(doorX - doorHalfWidth - bottomWallSegmentWidth / 2, doorY, bottomWallSegmentWidth, wallThickness);
-    this.createWall(doorX + doorHalfWidth + bottomWallSegmentWidth / 2, doorY, bottomWallSegmentWidth, wallThickness);
-    // Create left and right walls (spanning the room height)
-    const roomCenterY = (topWallY + bottomWallY) / 2;
-    this.createWall(wallThickness / 2, roomCenterY, wallThickness, roomHeight + wallThickness);
-    this.createWall(width - wallThickness / 2, roomCenterY, wallThickness, roomHeight + wallThickness);
-
-    this.placeTreasure();
-    
-    // Place a wall between player and treasure
     const playerX = width / 2;
-    // Player spawn: bottom of room minus offset (reuse bottomWallY from above)
     const playerY = bottomWallY - Positions.PLAYER_OFFSET_Y;
-    // placeTreasure() always creates a treasure, so it should not be null here
-    if (!this.treasure) {
-      throw new Error('Treasure was not created in placeTreasure()');
-    }
-    const treasureX = this.treasure.x;
-    const treasureY = this.treasure.y;
-    const wallX = (playerX + treasureX) / 2;
-    const wallY = (playerY + treasureY) / 2;
-    // Wall height should be based on room height, not screen height, and never exceed max ratio
-    const wallHeight = Math.min(roomHeight * GameConfig.WALL_HEIGHT_RATIO, roomHeight * GameConfig.WALL_HEIGHT_MAX_RATIO);
-    this.createWall(wallX, wallY, wallThickness, wallHeight);
-    
-    for (let i = 0; i < GameConfig.ENEMY_COUNT; i++) {
-      this.spawnEnemy();
-    }
 
     const playerBody = this.getPlayerBody();
     playerBody.setVelocity(0, 0);
     this.player.setPosition(playerX, playerY);
+
+    // Re-establish treasure collisions after building room
+    this.collisionManager.setupTreasureCollisions();
 
     // Ensure UI text stays on top after building new room (if it exists)
     if (this.scoreText) {
@@ -475,198 +378,12 @@ export class RoomScene extends Phaser.Scene {
     }
   }
 
-  private placeTreasure() {
-    // Destroy existing treasure if it exists
-    if (this.treasure) {
-      this.treasure.destroy();
-    }
-
-    // Create a new treasure at a random position within the room
-    const padding = Positions.PADDING;
-    const topWallY = Positions.ROOM_TOP_OFFSET + Sizes.WALL_THICKNESS / 2;
-    const roomTop = topWallY + Sizes.WALL_THICKNESS / 2 + padding;
-    const roomBottom = topWallY + this.scale.width - Sizes.WALL_THICKNESS / 2 - padding;
-    const x = Phaser.Math.Between(padding, this.scale.width - padding);
-    const y = Phaser.Math.Between(roomTop + Positions.PADDING_TREASURE_Y_OFFSET, roomBottom);
-    
-    this.treasure = this.add.circle(x, y, Sizes.TREASURE_RADIUS, Colors.TREASURE);
-    this.physics.add.existing(this.treasure, true);
-    
-    // Re-establish collisions with the new treasure
-    // Defensive check: ensure treasure was created successfully
-    if (this.treasure) {
-      this.setupTreasureCollisions();
-    } else {
-      console.error('Failed to create treasure in placeTreasure()');
-    }
-  }
-
-  private spawnEnemy() {
-    const topWallY = Positions.ROOM_TOP_OFFSET + Sizes.WALL_THICKNESS / 2;
-    const roomTop = topWallY + Sizes.WALL_THICKNESS / 2;
-    const roomBottom = topWallY + this.scale.width - Sizes.WALL_THICKNESS / 2;
-    const x = Phaser.Math.Between(Positions.SPAWN_MIN_X, this.scale.width - Positions.SPAWN_MIN_X);
-    const y = Phaser.Math.Between(Math.max(roomTop + Positions.SPAWN_MIN_Y, Positions.SPAWN_MIN_Y), roomBottom - Positions.SPAWN_MAX_Y_OFFSET);
-    const enemy = this.add.circle(x, y, Sizes.ENEMY_RADIUS, Colors.ENEMY);
-    this.enemies.add(enemy);
-    this.physics.add.existing(enemy);
-    const enemyBody = this.getEnemyBody(enemy);
-    this.setRandomEnemyVelocity(enemyBody);
-    enemyBody.setBounce(GameConfig.ENEMY_BOUNCE_X, GameConfig.ENEMY_BOUNCE_Y);
-    enemyBody.setCollideWorldBounds(true);
-  }
-
-  private spawnPurpleEnemy() {
-    const { width } = this.scale;
-    const wallThickness = Sizes.WALL_THICKNESS;
-    const topWallY = Positions.ROOM_TOP_OFFSET + wallThickness / 2;
-    
-    // Spawn at the top of the room, centered horizontally
-    const x = width / 2;
-    const y = topWallY + wallThickness / 2 + Sizes.ENEMY_RADIUS + GameConfig.PURPLE_ENEMY_SPAWN_OFFSET;
-    
-    const enemy = this.add.circle(x, y, Sizes.ENEMY_RADIUS, Colors.ENEMY_PURPLE);
-    this.enemies.add(enemy);
-    this.purpleEnemies.add(enemy); // Track as purple enemy
-    this.physics.add.existing(enemy);
-    const enemyBody = this.getEnemyBody(enemy);
-    enemyBody.setBounce(GameConfig.ENEMY_BOUNCE_X, GameConfig.ENEMY_BOUNCE_Y);
-    enemyBody.setCollideWorldBounds(true);
-    // Initial velocity will be set in updatePurpleEnemies
-  }
-
-  private updatePurpleEnemies() {
-    if (this.purpleEnemies.size === 0 || this.isGameOver) {
-      return;
-    }
-
-    const playerX = this.player.x;
-    const playerY = this.player.y;
-    // Purple enemy is faster than the player
-    const speed = Speeds.PLAYER * GameConfig.PURPLE_ENEMY_SPEED_MULTIPLIER;
-
-    // Update each purple enemy to move toward player
-    this.purpleEnemies.forEach((enemy) => {
-      if (!enemy.active) {
-        // Remove destroyed enemies from tracking
-        this.purpleEnemies.delete(enemy);
-        return;
-      }
-
-      const enemyBody = this.getEnemyBody(enemy);
-      if (!enemyBody) {
-        return;
-      }
-
-      // Calculate direction to player
-      const dx = playerX - enemy.x;
-      const dy = playerY - enemy.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      if (distance > 0) {
-        // Normalize and set velocity toward player
-        const velocityX = (dx / distance) * speed;
-        const velocityY = (dy / distance) * speed;
-        enemyBody.setVelocity(velocityX, velocityY);
-      }
-    });
-  }
-
-  private changeEnemyDirections() {
-    this.forEachActiveEnemy((enemy, enemyBody) => {
-      // Only change direction for active (green) enemies, not hit (red) ones
-      if (enemyBody.velocity.x !== 0 && enemyBody.velocity.y !== 0) {
-        this.setRandomEnemyVelocity(enemyBody);
-      }
-    });
-  }
-
-  private checkEnemySpawn() {
-    // Don't spawn if game is over, room hasn't started, or already spawned extra enemy
-    if (this.isGameOver || this.roomStartTime === 0 || this.hasSpawnedExtraEnemy) {
-      return;
-    }
-
-    // Calculate elapsed time in seconds
-    const elapsedSeconds = (this.time.now - this.roomStartTime) / GameConfig.MILLISECONDS_PER_SECOND;
-
-    if (DebugFlags.debugLog) {
-      console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}`);
-    }
-
-    // Spawn chance starts after configured time with base chance
-    if (elapsedSeconds < GameConfig.ENEMY_SPAWN_START_TIME) {
-      return;
-    }
-
-    // Calculate probability: starting at base chance, increasing by increment each second
-    const probability = Math.min(
-      (elapsedSeconds - GameConfig.ENEMY_SPAWN_TIME_OFFSET) * GameConfig.ENEMY_SPAWN_CHANCE_INCREMENT,
-      GameConfig.ENEMY_SPAWN_MAX_CHANCE
-    );
-
-    // Roll random chance
-    const roll = Phaser.Math.Between(GameConfig.ENEMY_SPAWN_ROLL_MIN, GameConfig.ENEMY_SPAWN_ROLL_MAX);
-
-    if (DebugFlags.debugLog) {
-      console.log(`Elapsed: ${elapsedSeconds.toFixed(2)}s, Probability: ${probability.toFixed(1)}%, Roll: ${roll}`);
-    }
-
-    if (roll < probability) {
-      // Mark that we've spawned an extra enemy for this room
-      this.hasSpawnedExtraEnemy = true;
-      
-      // Spawn the purple enemy
-      this.spawnPurpleEnemy();
-      
-      // Log debug message when new enemy appears
-      if (DebugFlags.debugLog) {
-        console.log(`New enemy spawn triggered! Elapsed: ${elapsedSeconds.toFixed(2)}s, Probability: ${probability.toFixed(1)}%, Roll: ${roll}`);
-      }
-    }
-  }
-
-  // ============================================================================
-  // Helper Methods - Utilities & Type Casting
-  // ============================================================================
-
-  private createWall(x: number, y: number, width: number, height: number) {
-    const wall = this.add.rectangle(x, y, width, height, Colors.WALL);
-    this.physics.add.existing(wall, true);
-    this.walls.add(wall);
-  }
-
   // ============================================================================
   // Helper Methods - Type Casting & Common Patterns
   // ============================================================================
 
   private getPlayerBody(): Phaser.Physics.Arcade.Body {
     return this.player.body as Phaser.Physics.Arcade.Body;
-  }
-
-  private getEnemyBody(enemy: Phaser.GameObjects.Arc): Phaser.Physics.Arcade.Body {
-    return enemy.body as Phaser.Physics.Arcade.Body;
-  }
-
-  private forEachActiveEnemy(
-    callback: (enemy: Phaser.GameObjects.Arc, enemyBody: Phaser.Physics.Arcade.Body) => void
-  ): void {
-    this.enemies.children.entries.forEach((child) => {
-      const enemy = child as Phaser.GameObjects.Arc;
-      const enemyBody = this.getEnemyBody(enemy);
-      if (enemyBody) {
-        callback(enemy, enemyBody);
-      }
-    });
-  }
-
-
-  private setRandomEnemyVelocity(enemyBody: Phaser.Physics.Arcade.Body): void {
-    const speed = Speeds.ENEMY;
-    enemyBody.setVelocity(
-      Phaser.Math.Between(-speed, speed),
-      Phaser.Math.Between(-speed, speed)
-    );
   }
 
   private addScore(points: number): void {
@@ -695,21 +412,10 @@ export class RoomScene extends Phaser.Scene {
     });
     this.delayedCalls = [];
 
-    // Remove all colliders
-    this.colliders.forEach(collider => {
-      if (collider) {
-        collider.destroy();
-      }
-    });
-    this.colliders = [];
-
-    // Remove all overlaps
-    this.overlaps.forEach(overlap => {
-      if (overlap) {
-        overlap.destroy();
-      }
-    });
-    this.overlaps = [];
+    // Clean up collision manager (removes all colliders and overlaps)
+    if (this.collisionManager) {
+      this.collisionManager.cleanup();
+    }
 
     // Destroy arrow manager (cleans up its event listeners)
     if (this.arrowManager) {
@@ -726,8 +432,5 @@ export class RoomScene extends Phaser.Scene {
     // Clean up keyboard listeners (Phaser handles this automatically, but we can clear references)
     this.cursors = undefined;
     this.fireKey = undefined;
-
-    // Clear enemy tracking sets
-    this.purpleEnemies.clear();
   }
 }
